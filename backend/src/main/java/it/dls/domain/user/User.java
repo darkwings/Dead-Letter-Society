@@ -2,6 +2,7 @@ package it.dls.domain.user;
 
 import java.util.UUID;
 
+
 public class User {
     private static final int MAX_FAILED_ATTEMPTS = 5;
 
@@ -38,6 +39,20 @@ public class User {
         if (subject == null || subject.isBlank()) throw new IllegalArgumentException("oidcSubject must not be blank");
         return new User(UUID.randomUUID(), email, displayName,
                         AuthProvider.OIDC, null, subject);
+    }
+
+    /** Reconstitutes a User from persistence — bypasses business logic side effects. */
+    public static User reconstitute(UUID id, String email, String displayName,
+                                     String passwordHash, String oidcSubject,
+                                     GlobalRole globalRole, int failedLoginAttempts,
+                                     boolean locked) {
+        var u = new User(id, email, displayName,
+                         passwordHash != null ? AuthProvider.LOCAL : AuthProvider.OIDC,
+                         passwordHash, oidcSubject);
+        u.globalRole = globalRole;
+        u.failedLoginAttempts = failedLoginAttempts;
+        u.locked = locked;
+        return u;
     }
 
     public void promoteToAdmin() { this.globalRole = GlobalRole.ADMIN; }
