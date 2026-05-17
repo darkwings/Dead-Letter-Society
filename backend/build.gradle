@@ -19,6 +19,7 @@ dependencies {
     implementation 'io.quarkus:quarkus-elytron-security-jdbc'
     implementation 'io.quarkus:quarkus-oidc'
     implementation 'io.quarkus:quarkus-smallrye-jwt'
+    implementation 'io.quarkus:quarkus-smallrye-openapi'
     implementation 'io.quarkus:quarkus-rest-client-jackson'
     implementation 'io.quarkus:quarkus-messaging-kafka'
     implementation 'io.confluent:kafka-schema-registry-client:7.8.0'
