@@ -44,10 +44,11 @@ public class User {
     /** Reconstitutes a User from persistence — bypasses business logic side effects. */
     public static User reconstitute(UUID id, String email, String displayName,
                                      String passwordHash, String oidcSubject,
+                                     AuthProvider authProvider,
                                      GlobalRole globalRole, int failedLoginAttempts,
                                      boolean locked) {
         var u = new User(id, email, displayName,
-                         passwordHash != null ? AuthProvider.LOCAL : AuthProvider.OIDC,
+                         authProvider,
                          passwordHash, oidcSubject);
         u.globalRole = globalRole;
         u.failedLoginAttempts = failedLoginAttempts;

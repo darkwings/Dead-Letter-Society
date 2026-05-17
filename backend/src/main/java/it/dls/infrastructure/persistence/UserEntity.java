@@ -62,6 +62,7 @@ public class UserEntity extends PanacheEntityBase {
 
     public User toDomain() {
         return User.reconstitute(id, email, displayName, passwordHash, oidcSubject,
+                                 authProvider,
                                  globalRole, failedLoginAttempts, locked);
     }
 }

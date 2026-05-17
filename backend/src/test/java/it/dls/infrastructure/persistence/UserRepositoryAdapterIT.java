@@ -28,6 +28,7 @@ class UserRepositoryAdapterIT {
     @Test
     @TestTransaction
     void existsAnyReturnsTrueAfterSave() {
+        assertThat(repo.existsAny()).isFalse();
         var user = User.createLocal("it-exists@dls.io", "IT User 2", "hash");
         repo.save(user);
         assertThat(repo.existsAny()).isTrue();
