@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
@@ -24,6 +25,7 @@ class LoginUseCaseTest {
         var result = useCase.login("u@dls.io", "any");
         assertThat(result.isFailure()).isTrue();
         assertThat(result.failureReason()).isEqualTo(LoginFailure.ACCOUNT_LOCKED);
+        verify(repo, never()).save(any());
     }
 
     @Test
@@ -38,6 +40,7 @@ class LoginUseCaseTest {
     @Test
     void unknownEmailReturnsInvalidCredentials() {
         when(repo.findByEmail("unknown@dls.io")).thenReturn(Optional.empty());
+        when(hasher.verify(any(), any())).thenReturn(false);
         var result = useCase.login("unknown@dls.io", "password");
         assertThat(result.isFailure()).isTrue();
         assertThat(result.failureReason()).isEqualTo(LoginFailure.INVALID_CREDENTIALS);

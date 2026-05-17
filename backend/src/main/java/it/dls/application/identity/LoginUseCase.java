@@ -7,6 +7,8 @@ import java.util.Optional;
 
 public class LoginUseCase {
 
+    private static final String DUMMY_HASH = "$2a$12$DummyHashToPreventTimingOracleXX.XXXXXXXXXXXXXXXXXXX";
+
     private final UserRepository userRepository;
     private final PasswordHashPort passwordHash;
 
@@ -17,7 +19,10 @@ public class LoginUseCase {
 
     public LoginResult login(String email, String password) {
         Optional<User> maybeUser = userRepository.findByEmail(email);
-        if (maybeUser.isEmpty()) return LoginResult.failure(LoginFailure.INVALID_CREDENTIALS);
+        if (maybeUser.isEmpty()) {
+            passwordHash.verify(password, DUMMY_HASH);
+            return LoginResult.failure(LoginFailure.INVALID_CREDENTIALS);
+        }
 
         User user = maybeUser.get();
         if (user.isLocked()) return LoginResult.failure(LoginFailure.ACCOUNT_LOCKED);

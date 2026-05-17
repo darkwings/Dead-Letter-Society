@@ -13,6 +13,10 @@ public class RegisterAdminUseCase {
         this.passwordHash = passwordHash;
     }
 
+    /**
+     * Registers the first administrator account.
+     * MUST be called within a transaction: the existsAny() check and save() are not atomic otherwise.
+     */
     public User registerFirstAdmin(String email, String displayName, String password) {
         if (userRepository.existsAny()) {
             throw new IllegalStateException("Setup already completed. First admin already exists.");
