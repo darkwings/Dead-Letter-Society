@@ -30,9 +30,10 @@ dependencies {
     testImplementation 'io.rest-assured:rest-assured'
     testImplementation 'io.quarkus:quarkus-test-security'
     testImplementation 'org.testcontainers:testcontainers'
-    testImplementation 'org.testcontainers:kafka'
-    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:kafka:1.21.3'
+    testImplementation 'org.testcontainers:postgresql:1.21.3'
     testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.assertj:assertj-core:3.27.3'
 }
 
 java {
