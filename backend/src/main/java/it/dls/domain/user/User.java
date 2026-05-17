@@ -3,6 +3,8 @@ package it.dls.domain.user;
 import java.util.UUID;
 
 public class User {
+    private static final int MAX_FAILED_ATTEMPTS = 5;
+
     private final UUID id;
     private final String email;
     private String displayName;
@@ -15,6 +17,8 @@ public class User {
 
     private User(UUID id, String email, String displayName,
                  AuthProvider provider, String passwordHash, String oidcSubject) {
+        if (email == null || email.isBlank()) throw new IllegalArgumentException("email must not be blank");
+        if (displayName == null || displayName.isBlank()) throw new IllegalArgumentException("displayName must not be blank");
         this.id = id;
         this.email = email;
         this.displayName = displayName;
@@ -25,11 +29,13 @@ public class User {
     }
 
     public static User createLocal(String email, String displayName, String passwordHash) {
+        if (passwordHash == null || passwordHash.isBlank()) throw new IllegalArgumentException("passwordHash must not be blank");
         return new User(UUID.randomUUID(), email, displayName,
                         AuthProvider.LOCAL, passwordHash, null);
     }
 
     public static User createOidc(String email, String displayName, String subject) {
+        if (subject == null || subject.isBlank()) throw new IllegalArgumentException("oidcSubject must not be blank");
         return new User(UUID.randomUUID(), email, displayName,
                         AuthProvider.OIDC, null, subject);
     }
@@ -38,7 +44,7 @@ public class User {
 
     public void recordFailedLoginAttempt() {
         this.failedLoginAttempts++;
-        if (this.failedLoginAttempts >= 5) this.locked = true;
+        if (this.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) this.locked = true;
     }
 
     public void resetFailedAttempts() { this.failedLoginAttempts = 0; }

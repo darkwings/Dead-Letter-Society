@@ -13,10 +13,17 @@ class UserTest {
     }
 
     @Test
-    void lockedUserCannotAuthenticate() {
+    void userIsLockedAfterFiveFailedAttempts() {
         var user = User.createLocal("user@dls.io", "User", "hashedpwd");
         for (int i = 0; i < 5; i++) user.recordFailedLoginAttempt();
         assertThat(user.isLocked()).isTrue();
+    }
+
+    @Test
+    void userIsNotLockedBeforeThreshold() {
+        var user = User.createLocal("user@dls.io", "User", "hashedpwd");
+        for (int i = 0; i < 4; i++) user.recordFailedLoginAttempt();
+        assertThat(user.isLocked()).isFalse();
     }
 
     @Test
