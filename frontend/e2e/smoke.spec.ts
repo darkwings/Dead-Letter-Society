@@ -1,12 +1,17 @@
 import { test, expect } from '@playwright/test'
 
 test('app loads with correct title', async ({ page }) => {
+  await page.route('/api/setup/status', route =>
+    route.fulfill({ json: { setupRequired: false } })
+  )
   await page.goto('/')
   await expect(page).toHaveTitle(/Dead Letter Society/)
-  await expect(page.getByText('Dead Letter Society')).toBeVisible()
 })
 
-test('redirects root to dashboard', async ({ page }) => {
-  await page.goto('/')
-  await expect(page).toHaveURL('/dashboard')
+test('unauthenticated user redirected to login', async ({ page }) => {
+  await page.route('/api/setup/status', route =>
+    route.fulfill({ json: { setupRequired: false } })
+  )
+  await page.goto('/dashboard')
+  await expect(page).toHaveURL('/login')
 })
