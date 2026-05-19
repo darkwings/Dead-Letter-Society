@@ -2,6 +2,7 @@ package it.dls.infrastructure.api.auth;
 
 import it.dls.application.identity.RegisterAdminUseCase;
 import it.dls.domain.user.UserRepository;
+import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
@@ -15,6 +16,7 @@ import jakarta.ws.rs.core.Response;
 @Path("/api/setup")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@PermitAll
 public class SetupResource {
 
     @Inject

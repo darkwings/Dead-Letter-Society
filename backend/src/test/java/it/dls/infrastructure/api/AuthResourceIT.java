@@ -6,6 +6,7 @@ import it.dls.infrastructure.persistence.UserEntity;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,12 @@ class AuthResourceIT {
 
     @Inject
     EntityManager em;
+
+    @BeforeEach
+    @Transactional
+    void ensureClean() {
+        UserEntity.delete("email", EMAIL);
+    }
 
     @Test
     @Order(1)
