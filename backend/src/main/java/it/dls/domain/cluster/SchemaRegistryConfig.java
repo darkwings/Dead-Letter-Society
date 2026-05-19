@@ -5,6 +5,11 @@ public record SchemaRegistryConfig(
     String encryptedUsername,  // null if no auth
     String encryptedPassword   // null if no auth
 ) {
+    public SchemaRegistryConfig {
+        if (url == null || url.isBlank())
+            throw new IllegalArgumentException("SchemaRegistryConfig url must not be blank");
+    }
+
     public SchemaRegistryAuthConfig authConfig() {
         return new SchemaRegistryAuthConfig(encryptedUsername, encryptedPassword);
     }

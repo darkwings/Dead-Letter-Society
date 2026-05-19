@@ -6,6 +6,19 @@ public record KafkaSecurityConfig(
     String encryptedPassword,    // null for PLAINTEXT
     String encryptedKeystorePem  // null unless SSL
 ) {
+    public KafkaSecurityConfig {
+        if (protocol == null) throw new IllegalArgumentException("protocol must not be null");
+        if (protocol == KafkaSecurityProtocol.SASL_PLAIN
+                || protocol == KafkaSecurityProtocol.SASL_SCRAM_SHA_256
+                || protocol == KafkaSecurityProtocol.SASL_SCRAM_SHA_512) {
+            if (encryptedUsername == null || encryptedPassword == null)
+                throw new IllegalArgumentException(
+                    protocol + " requires encryptedUsername and encryptedPassword");
+        }
+        if (protocol == KafkaSecurityProtocol.SSL && encryptedKeystorePem == null)
+            throw new IllegalArgumentException("SSL requires encryptedKeystorePem");
+    }
+
     public static KafkaSecurityConfig plaintext() {
         return new KafkaSecurityConfig(KafkaSecurityProtocol.PLAINTEXT, null, null, null);
     }

@@ -78,4 +78,50 @@ class KafkaClusterTest {
         assertThatThrownBy(() -> cluster.updateName(""))
             .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void updateBootstrapServersAppliesValue() {
+        var cluster = KafkaCluster.create("localhost:9092", "prod",
+            KafkaSecurityConfig.plaintext(), null);
+        cluster.updateBootstrapServers("broker1:9092,broker2:9092");
+        assertThat(cluster.getBootstrapServers()).isEqualTo("broker1:9092,broker2:9092");
+    }
+
+    @Test
+    void updateBootstrapServersRejectedWhenBlank() {
+        var cluster = KafkaCluster.create("localhost:9092", "prod",
+            KafkaSecurityConfig.plaintext(), null);
+        assertThatThrownBy(() -> cluster.updateBootstrapServers("  "))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void updateSecurityConfigAppliesValue() {
+        var cluster = KafkaCluster.create("localhost:9092", "prod",
+            KafkaSecurityConfig.plaintext(), null);
+        var sasl = KafkaSecurityConfig.saslPlain("enc-user", "enc-pass");
+        cluster.updateSecurityConfig(sasl);
+        assertThat(cluster.getSecurityConfig().protocol()).isEqualTo(KafkaSecurityProtocol.SASL_PLAIN);
+    }
+
+    @Test
+    void updateSecurityConfigRejectedWhenNull() {
+        var cluster = KafkaCluster.create("localhost:9092", "prod",
+            KafkaSecurityConfig.plaintext(), null);
+        assertThatThrownBy(() -> cluster.updateSecurityConfig(null))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void saslSecurityConfigRequiresCredentials() {
+        assertThatThrownBy(() ->
+            new KafkaSecurityConfig(KafkaSecurityProtocol.SASL_PLAIN, null, null, null))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void schemaRegistryRequiresUrl() {
+        assertThatThrownBy(() -> new SchemaRegistryConfig(null, null, null))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
 }
