@@ -16,6 +16,8 @@ import java.util.Base64;
 @ApplicationScoped
 public class AesGcmEncryptionAdapter implements EncryptionPort {
 
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     private final SecretKeySpec keySpec;
 
     @Inject
@@ -32,7 +34,7 @@ public class AesGcmEncryptionAdapter implements EncryptionPort {
     public String encrypt(String plaintext) {
         try {
             byte[] iv = new byte[12];
-            new SecureRandom().nextBytes(iv);
+            SECURE_RANDOM.nextBytes(iv);
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.ENCRYPT_MODE, keySpec, new GCMParameterSpec(128, iv));
             byte[] encrypted = cipher.doFinal(
