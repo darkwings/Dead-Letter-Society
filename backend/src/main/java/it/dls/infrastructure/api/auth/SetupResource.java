@@ -32,6 +32,13 @@ public class SetupResource {
     @POST
     @Transactional
     public Response createAdmin(CreateAdminRequest req) {
+        if (req == null || req.email() == null || req.email().isBlank()
+                || req.displayName() == null || req.displayName().isBlank()
+                || req.password() == null || req.password().isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                .entity(new ErrorResponse("INVALID_REQUEST", "email, displayName and password are required"))
+                .build();
+        }
         if (userRepository.existsAny()) {
             return Response.status(Response.Status.CONFLICT)
                 .entity(new ErrorResponse("SETUP_ALREADY_DONE", "Setup already completed"))
