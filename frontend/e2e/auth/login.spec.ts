@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.removeItem('dls-auth'))
+})
+
 test('login page shown when not authenticated', async ({ page }) => {
   await page.route('/api/setup/status', route =>
     route.fulfill({ json: { setupRequired: false } })

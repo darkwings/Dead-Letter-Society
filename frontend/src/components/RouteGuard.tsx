@@ -1,5 +1,4 @@
-import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 
 interface Props {
@@ -7,13 +6,7 @@ interface Props {
 }
 
 export default function RouteGuard({ children }: Props) {
-  const navigate = useNavigate()
   const token = useAuthStore((s) => s.token)
-
-  useEffect(() => {
-    if (!token) navigate('/login', { replace: true })
-  }, [token, navigate])
-
-  if (!token) return null
+  if (!token) return <Navigate to="/login" replace />
   return <>{children}</>
 }

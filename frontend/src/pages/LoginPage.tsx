@@ -38,12 +38,9 @@ export default function LoginPage() {
   })
 
   useEffect(() => {
-    if (token) navigate('/dashboard', { replace: true })
-  }, [token, navigate])
-
-  useEffect(() => {
+    if (token) { navigate('/dashboard', { replace: true }); return }
     if (setupStatus?.setupRequired) navigate('/setup', { replace: true })
-  }, [setupStatus, navigate])
+  }, [token, setupStatus, navigate])
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -58,7 +55,7 @@ export default function LoginPage() {
         id: data.user.id,
         email: data.user.email,
         displayName: data.user.displayName,
-        globalRole: data.user.role,
+        globalRole: data.user.role, // API returns 'role'; store uses 'globalRole'
       })
       navigate('/dashboard', { replace: true })
     },
