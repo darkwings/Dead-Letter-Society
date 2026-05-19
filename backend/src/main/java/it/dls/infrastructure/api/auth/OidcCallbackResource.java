@@ -7,6 +7,7 @@ import it.dls.domain.user.User;
 import jakarta.inject.Inject;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
@@ -37,6 +38,11 @@ public class OidcCallbackResource {
     public Response exchange() {
         String subject = oidcToken.getSubject();
         String email = oidcToken.getClaim("email");
+        if (email == null || email.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                .entity(new ErrorResponse("MISSING_EMAIL_CLAIM", "OIDC token does not contain an email claim"))
+                .build();
+        }
         String displayName = oidcToken.<String>getClaim("name") != null
             ? oidcToken.<String>getClaim("name")
             : email;
@@ -63,6 +69,8 @@ public class OidcCallbackResource {
                 var arrBuilder = Json.createArrayBuilder();
                 col.forEach(item -> arrBuilder.add(item.toString()));
                 builder.add(name, arrBuilder.build());
+            } else if (value instanceof JsonObject nested) {
+                builder.add(name, nested);
             } else if (value != null) {
                 builder.add(name, value.toString());
             }

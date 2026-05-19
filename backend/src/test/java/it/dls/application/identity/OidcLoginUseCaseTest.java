@@ -67,7 +67,7 @@ class OidcLoginUseCaseTest {
     }
 
     @Test
-    void existingOidcUser_noClaimChange_whenClaimAbsent() {
+    void existingOidcAdmin_demotedToUser_whenClaimRevoked() {
         User existingUser = User.createOidc("test@oidc.io", "Test User", "sub-123");
         existingUser.promoteToAdmin();
         assertThat(existingUser.getGlobalRole()).isEqualTo(GlobalRole.ADMIN);
@@ -76,7 +76,7 @@ class OidcLoginUseCaseTest {
         User result = useCase()
             .loginOrProvision("sub-123", "test@oidc.io", "Test User", emptyClaimsObject());
 
-        assertThat(result.getGlobalRole()).isEqualTo(GlobalRole.ADMIN);
+        assertThat(result.getGlobalRole()).isEqualTo(GlobalRole.USER);
         verify(userRepository, times(1)).save(existingUser);
     }
 }

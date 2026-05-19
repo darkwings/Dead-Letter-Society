@@ -57,6 +57,7 @@ public class User {
     }
 
     public void promoteToAdmin() { this.globalRole = GlobalRole.ADMIN; }
+    public void demoteToUser() { this.globalRole = GlobalRole.USER; }
 
     public void recordFailedLoginAttempt() {
         this.failedLoginAttempts++;

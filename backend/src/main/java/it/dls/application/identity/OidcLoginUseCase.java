@@ -36,7 +36,11 @@ public class OidcLoginUseCase {
     }
 
     private User syncAdminRole(User user, JsonObject claims) {
-        if (hasAdminClaim(claims)) user.promoteToAdmin();
+        if (hasAdminClaim(claims)) {
+            user.promoteToAdmin();
+        } else {
+            user.demoteToUser();
+        }
         userRepository.save(user);
         return user;
     }
