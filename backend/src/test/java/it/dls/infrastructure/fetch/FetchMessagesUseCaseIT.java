@@ -84,7 +84,9 @@ class FetchMessagesUseCaseIT {
         var result = useCase.fetchOnDemand(dlqConfig.getId(), UUID.randomUUID());
 
         assertThat(result.count()).isGreaterThanOrEqualTo(3);
-        assertThat(messageRepo.countByDlqConfigId(dlqConfig.getId())).isGreaterThanOrEqualTo(3);
+        var page = messageRepo.findByConfig(dlqConfig.getId(), it.dls.domain.message.MessageFilter.empty(),
+            new it.dls.domain.message.Pageable(0, 100));
+        assertThat(page.total()).isGreaterThanOrEqualTo(3);
     }
 
     @Test

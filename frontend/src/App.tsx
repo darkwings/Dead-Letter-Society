@@ -5,6 +5,8 @@ import LoginPage from '@/pages/LoginPage'
 import ClusterListPage from '@/pages/clusters/ClusterListPage'
 import CreateClusterPage from '@/pages/clusters/CreateClusterPage'
 import CreateDlqConfigPage from '@/pages/dlqconfig/CreateDlqConfigPage'
+import MessageListPage from '@/pages/messages/MessageListPage'
+import MessageDetailPage from '@/pages/messages/MessageDetailPage'
 import RouteGuard from '@/components/RouteGuard'
 
 export default function App() {
@@ -28,6 +30,8 @@ export default function App() {
             </RouteGuard>
           } />
           <Route path="/clusters/:clusterId/dlq-configs/new" element={<CreateDlqConfigPage />} />
+          <Route path="/dlq-configs/:configId/messages" element={<MessageListPage />} />
+          <Route path="/messages/:messageId" element={<MessageDetailPage />} />
           <Route path="*" element={
             <div className="p-8">
               <h1 className="t-h1">404</h1>

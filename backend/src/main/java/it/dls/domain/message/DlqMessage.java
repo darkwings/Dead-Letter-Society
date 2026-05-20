@@ -71,7 +71,7 @@ public class DlqMessage {
         return m;
     }
 
-    public void changeStatus(MessageStatus newStatus) {
+    public void transitionTo(MessageStatus newStatus) {
         this.status = newStatus;
     }
 
