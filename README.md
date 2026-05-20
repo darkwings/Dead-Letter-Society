@@ -4,13 +4,12 @@ Web app to monitor Kafka dead-letter queues across multiple clusters. Inspect sc
 
 ## Local development
 
-### Option A — Quarkus Dev Services (zero config)
-
-Quarkus auto-starts PostgreSQL and Redpanda via Testcontainers on random ports.
-No external services needed, but ports change on every restart — not suitable for
-testing cluster connectivity through the DLS UI.
+Start the dev stack (PostgreSQL + Redpanda on fixed ports), then run the app:
 
 ```bash
+# from repo root
+docker compose -f docker/docker-compose.dev.yml up -d
+
 cd backend
 ./gradlew quarkusDev
 
@@ -22,21 +21,8 @@ npm run dev
 Frontend: http://localhost:5173  
 Backend: http://localhost:8080
 
-### Option B — docker-compose + fixed ports (recommended for UI testing)
-
-Starts PostgreSQL on 5432 and Redpanda on fixed ports (9092 / 8081).
-
-```bash
-# from repo root
-docker compose -f docker/docker-compose.dev.yml up -d
-
-cd backend
-./gradlew quarkusDev -Dquarkus.devservices.enabled=false
-
-# separate terminal
-cd frontend
-npm run dev
-```
+The backend connects to `localhost:5432` (PostgreSQL) and disables Kafka Dev Services
+automatically in `dev` profile — no flags needed.
 
 Cluster config in the DLS UI:
 - **Bootstrap servers**: `localhost:9092`
