@@ -28,17 +28,21 @@ public class ManageClusterUseCase {
     @Transactional
     public KafkaCluster registerCluster(RegisterClusterCommand cmd) {
         var security = buildSecurityConfig(cmd);
-        var srConfig = new SchemaRegistryConfig(cmd.srUrl(),
-            cmd.srUsername() != null ? encryption.encrypt(cmd.srUsername()) : null,
-            cmd.srPassword() != null ? encryption.encrypt(cmd.srPassword()) : null);
 
         var kafkaResult = connectivity.testKafka(cmd.bootstrapServers(), security);
         if (!kafkaResult.success())
             throw new ConnectivityValidationException("Kafka: " + kafkaResult.errorMessage());
 
-        var srResult = connectivity.testSchemaRegistry(cmd.srUrl(), srConfig.authConfig());
-        if (!srResult.success())
-            throw new ConnectivityValidationException("Schema Registry: " + srResult.errorMessage());
+        SchemaRegistryConfig srConfig = null;
+        if (cmd.srUrl() != null && !cmd.srUrl().isBlank()) {
+            srConfig = new SchemaRegistryConfig(
+                cmd.srUrl(),
+                cmd.srUsername() != null ? encryption.encrypt(cmd.srUsername()) : null,
+                cmd.srPassword() != null ? encryption.encrypt(cmd.srPassword()) : null);
+            var srResult = connectivity.testSchemaRegistry(cmd.srUrl(), srConfig.authConfig());
+            if (!srResult.success())
+                throw new ConnectivityValidationException("Schema Registry: " + srResult.errorMessage());
+        }
 
         var cluster = KafkaCluster.create(cmd.bootstrapServers(), cmd.name(), security, srConfig);
         clusterRepo.save(cluster);
