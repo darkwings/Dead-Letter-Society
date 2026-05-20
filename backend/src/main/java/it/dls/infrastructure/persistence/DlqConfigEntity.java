@@ -55,6 +55,9 @@ public class DlqConfigEntity extends PanacheEntityBase {
     @OneToMany(mappedBy = "dlqConfig", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     public List<DlqUserAssignmentEntity> assignments = new ArrayList<>();
 
+    @OneToMany(mappedBy = "dlqConfig", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    public List<PartitionOffsetEntity> partitionOffsets = new ArrayList<>();
+
     public static DlqConfigEntity fromDomain(DlqConfig c) {
         var e = new DlqConfigEntity();
         e.id = c.getId();
@@ -89,7 +92,10 @@ public class DlqConfigEntity extends PanacheEntityBase {
         var userAssignments = assignments.stream()
             .map(a -> new UserAssignment(a.userId, a.role))
             .collect(Collectors.toList());
+        var offsets = partitionOffsets.stream()
+            .map(PartitionOffsetEntity::toDomain)
+            .collect(Collectors.toList());
         return DlqConfig.reconstitute(id, clusterId, topicName, displayName,
-            fetch, retention, schemaRegistryId, userAssignments);
+            fetch, retention, schemaRegistryId, userAssignments, offsets);
     }
 }

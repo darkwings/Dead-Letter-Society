@@ -1,9 +1,6 @@
 package it.dls.infrastructure.persistence;
 
-import it.dls.domain.dlqconfig.DlqConfig;
-import it.dls.domain.dlqconfig.DlqConfigRepository;
-import it.dls.domain.dlqconfig.DlqRole;
-import it.dls.domain.dlqconfig.UserAssignment;
+import it.dls.domain.dlqconfig.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 
@@ -33,6 +30,7 @@ public class DlqConfigRepositoryAdapter implements DlqConfigRepository {
             existing.schemaRegistryId = config.getSchemaRegistryId();
             existing.updatedAt = Instant.now();
             syncAssignments(existing, config);
+            syncPartitionOffsets(existing, config);
         }
     }
 
@@ -47,6 +45,30 @@ public class DlqConfigRepositoryAdapter implements DlqConfigRepository {
         }
     }
 
+    private void syncPartitionOffsets(DlqConfigEntity entity, DlqConfig config) {
+        var incomingMap = config.getPartitionOffsets().stream()
+            .collect(Collectors.toMap(PartitionOffset::partition, po -> po));
+        var existingMap = entity.partitionOffsets.stream()
+            .collect(Collectors.toMap(e -> e.partition, e -> e));
+
+        // update existing + add new
+        for (var po : config.getPartitionOffsets()) {
+            if (existingMap.containsKey(po.partition())) {
+                existingMap.get(po.partition()).lastOffset = po.lastOffset();
+                existingMap.get(po.partition()).updatedAt = Instant.now();
+            } else {
+                var pe = new PartitionOffsetEntity();
+                pe.dlqConfig = entity;
+                pe.partition = po.partition();
+                pe.lastOffset = po.lastOffset();
+                pe.updatedAt = Instant.now();
+                entity.partitionOffsets.add(pe);
+            }
+        }
+        // remove partitions no longer tracked
+        entity.partitionOffsets.removeIf(pe -> !incomingMap.containsKey(pe.partition));
+    }
+
     @Override
     @Transactional(Transactional.TxType.SUPPORTS)
     public Optional<DlqConfig> findById(UUID id) {
@@ -58,6 +80,15 @@ public class DlqConfigRepositoryAdapter implements DlqConfigRepository {
     @Transactional(Transactional.TxType.SUPPORTS)
     public List<DlqConfig> findByClusterId(UUID clusterId) {
         return DlqConfigEntity.<DlqConfigEntity>find("clusterId", clusterId)
+            .stream().map(DlqConfigEntity::toDomain).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(Transactional.TxType.SUPPORTS)
+    public List<DlqConfig> findAllWithScheduledFetch() {
+        return DlqConfigEntity.<DlqConfigEntity>find(
+                "downloadMode IN ?1",
+                List.of(DownloadMode.SCHEDULED, DownloadMode.BOTH))
             .stream().map(DlqConfigEntity::toDomain).collect(Collectors.toList());
     }
 

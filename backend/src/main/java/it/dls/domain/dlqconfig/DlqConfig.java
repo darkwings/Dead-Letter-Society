@@ -15,6 +15,7 @@ public class DlqConfig {
     private RetentionPolicy retentionPolicy;
     private UUID schemaRegistryId;  // nullable
     private final List<UserAssignment> userAssignments = new ArrayList<>();
+    private final List<PartitionOffset> partitionOffsets = new ArrayList<>();
 
     private DlqConfig() {}
 
@@ -44,7 +45,8 @@ public class DlqConfig {
 
     public static DlqConfig reconstitute(UUID id, UUID clusterId, String topicName, String displayName,
                                          FetchConfig fetchConfig, RetentionPolicy retentionPolicy,
-                                         UUID schemaRegistryId, List<UserAssignment> assignments) {
+                                         UUID schemaRegistryId, List<UserAssignment> assignments,
+                                         List<PartitionOffset> partitionOffsets) {
         var c = new DlqConfig();
         c.id = id;
         c.clusterId = clusterId;
@@ -54,6 +56,7 @@ public class DlqConfig {
         c.retentionPolicy = retentionPolicy;
         c.schemaRegistryId = schemaRegistryId;
         if (assignments != null) c.userAssignments.addAll(assignments);
+        if (partitionOffsets != null) c.partitionOffsets.addAll(partitionOffsets);
         return c;
     }
 
@@ -66,6 +69,11 @@ public class DlqConfig {
         userAssignments.removeIf(a -> a.userId().equals(userId));
     }
 
+    public void updatePartitionOffset(int partition, long lastOffset) {
+        partitionOffsets.removeIf(po -> po.partition() == partition);
+        partitionOffsets.add(new PartitionOffset(partition, lastOffset));
+    }
+
     public UUID getId() { return id; }
     public UUID getClusterId() { return clusterId; }
     public String getTopicName() { return topicName; }
@@ -74,4 +82,5 @@ public class DlqConfig {
     public RetentionPolicy getRetentionPolicy() { return retentionPolicy; }
     public UUID getSchemaRegistryId() { return schemaRegistryId; }
     public List<UserAssignment> getUserAssignments() { return Collections.unmodifiableList(userAssignments); }
+    public List<PartitionOffset> getPartitionOffsets() { return Collections.unmodifiableList(partitionOffsets); }
 }

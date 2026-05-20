@@ -5,6 +5,8 @@ import io.quarkus.test.TestTransaction;
 import it.dls.domain.user.User;
 import it.dls.domain.user.UserRepository;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,6 +16,12 @@ class UserRepositoryAdapterIT {
 
     @Inject
     UserRepository repo;
+
+    @BeforeEach
+    @Transactional
+    void cleanUsers() {
+        UserEntity.deleteAll();
+    }
 
     @Test
     @TestTransaction

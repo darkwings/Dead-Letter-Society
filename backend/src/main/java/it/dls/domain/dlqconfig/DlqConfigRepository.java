@@ -8,5 +8,6 @@ public interface DlqConfigRepository {
     void save(DlqConfig config);
     Optional<DlqConfig> findById(UUID id);
     List<DlqConfig> findByClusterId(UUID clusterId);
+    List<DlqConfig> findAllWithScheduledFetch();
     void delete(UUID id);
 }
