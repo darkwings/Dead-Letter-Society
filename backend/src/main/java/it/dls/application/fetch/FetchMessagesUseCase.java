@@ -193,8 +193,15 @@ public class FetchMessagesUseCase {
         if (srUrl != null && raw.value() != null && raw.value().length > 0) {
             try {
                 var result = schemaRegistry.decode(raw.value(), srUrl, srAuth);
-                decoded = result.payload();
-                schemaId = result.schemaId();
+                if (result.isDecoded()) {
+                    decoded = result.payload();
+                    schemaId = result.schemaId();
+                } else if (result.schemaId() != null) {
+                    // Confluent header detected but decode failed
+                    decodeFailed = true;
+                    schemaId = result.schemaId();
+                }
+                // null schemaId = not Confluent wire format (raw) — no action
             } catch (Exception e) {
                 decodeFailed = true;
                 log.debugf("Schema decode failed for %s partition %d offset %d: %s",

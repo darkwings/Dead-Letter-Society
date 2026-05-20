@@ -6,8 +6,10 @@ import it.dls.domain.cluster.SchemaRegistryAuthConfig;
 import it.dls.domain.shared.DecodedPayload;
 import it.dls.domain.shared.SchemaRegistryPort;
 import it.dls.domain.shared.ValidationResult;
+import io.quarkus.arc.DefaultBean;
 import jakarta.enterprise.context.ApplicationScoped;
 
+@DefaultBean
 @ApplicationScoped
 public class JsonSchemaRegistryAdapter implements SchemaRegistryPort {
 
