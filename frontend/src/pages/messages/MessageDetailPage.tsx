@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import NoteThread from '@/components/NoteThread'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -13,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import ReplayWizard from './ReplayWizard'
 
 interface MessageDetail {
   id: string
@@ -41,6 +43,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function MessageDetailPage() {
   const { messageId } = useParams<{ messageId: string }>()
   const queryClient = useQueryClient()
+  const [showReplay, setShowReplay] = useState(false)
 
   const { data: msg, isLoading, error } = useQuery({
     queryKey: ['message', messageId],
@@ -155,8 +158,13 @@ export default function MessageDetailPage() {
             >
               Discard
             </Button>
-            <Button variant="outline" size="sm" disabled title="Replay coming in Phase 6">
-              Replay (coming soon)
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowReplay(true)}
+              data-testid="replay-button"
+            >
+              Replay
             </Button>
           </div>
         )}
@@ -221,6 +229,16 @@ export default function MessageDetailPage() {
           {messageId && <NoteThread messageId={messageId} />}
         </section>
       </div>
+
+      {showReplay && messageId && (
+        <ReplayWizard
+          messageId={messageId}
+          resolvedTopic={(msg.headers as Record<string, string>)['x-original-topic'] ?? null}
+          hasDecodedPayload={!!msg.decodedPayload}
+          decodedPayload={msg.decodedPayload}
+          onClose={() => setShowReplay(false)}
+        />
+      )}
     </RouteGuard>
   )
 }
