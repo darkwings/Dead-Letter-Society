@@ -1,4 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
+import NoteThread from '@/components/NoteThread'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
@@ -215,10 +216,9 @@ export default function MessageDetailPage() {
           </section>
         )}
 
-        {/* Note thread placeholder */}
         <section className="mb-6 p-4 border rounded-lg bg-card">
-          <h2 className="t-h2 mb-2">Notes</h2>
-          <p className="t-small text-muted-foreground">Note thread coming in Phase 5.</p>
+          <h2 className="t-h2 mb-4">Notes</h2>
+          {messageId && <NoteThread messageId={messageId} />}
         </section>
       </div>
     </RouteGuard>
