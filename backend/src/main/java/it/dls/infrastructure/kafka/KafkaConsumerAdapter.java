@@ -11,8 +11,6 @@ import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.config.SaslConfigs;
-import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.jboss.logging.Logger;
 
@@ -134,14 +132,14 @@ public class KafkaConsumerAdapter implements KafkaConsumerPort {
     }
 
     private Properties buildAdminProps(String bootstrapServers, KafkaSecurityConfig security) {
-        var props = buildBaseProps(bootstrapServers, security);
+        var props = KafkaSecurityPropsBuilder.base(bootstrapServers, security);
         props.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, String.valueOf(ADMIN_TIMEOUT_MS));
         props.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, String.valueOf(ADMIN_TIMEOUT_MS));
         return props;
     }
 
     private Properties buildConsumerProps(String bootstrapServers, KafkaSecurityConfig security) {
-        var props = buildBaseProps(bootstrapServers, security);
+        var props = KafkaSecurityPropsBuilder.base(bootstrapServers, security);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
@@ -149,45 +147,5 @@ public class KafkaConsumerAdapter implements KafkaConsumerPort {
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "dls-consumer-" + UUID.randomUUID());
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "500");
         return props;
-    }
-
-    private Properties buildBaseProps(String bootstrapServers, KafkaSecurityConfig security) {
-        var props = new Properties();
-        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        switch (security.protocol()) {
-            case PLAINTEXT -> props.put("security.protocol", "PLAINTEXT");
-            case SSL -> {
-                props.put("security.protocol", "SSL");
-                props.put(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG, "PEM");
-                props.put(SslConfigs.SSL_KEYSTORE_CERTIFICATE_CHAIN_CONFIG,
-                    security.encryptedKeystorePem());
-            }
-            case SASL_PLAIN -> {
-                props.put("security.protocol", "SASL_SSL");
-                props.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
-                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
-                    "org.apache.kafka.common.security.plain.PlainLoginModule",
-                    security.encryptedUsername(), security.encryptedPassword()));
-            }
-            case SASL_SCRAM_SHA_256 -> {
-                props.put("security.protocol", "SASL_SSL");
-                props.put(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-256");
-                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
-                    "org.apache.kafka.common.security.scram.ScramLoginModule",
-                    security.encryptedUsername(), security.encryptedPassword()));
-            }
-            case SASL_SCRAM_SHA_512 -> {
-                props.put("security.protocol", "SASL_SSL");
-                props.put(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-512");
-                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
-                    "org.apache.kafka.common.security.scram.ScramLoginModule",
-                    security.encryptedUsername(), security.encryptedPassword()));
-            }
-        }
-        return props;
-    }
-
-    private String buildJaas(String loginModule, String username, String password) {
-        return loginModule + " required username=\"" + username + "\" password=\"" + password + "\";";
     }
 }

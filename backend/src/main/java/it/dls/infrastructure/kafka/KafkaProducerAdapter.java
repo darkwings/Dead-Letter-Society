@@ -6,8 +6,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.config.SaslConfigs;
-import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 
@@ -38,51 +36,11 @@ public class KafkaProducerAdapter implements KafkaProducerPort {
     }
 
     private Properties buildProducerProps(String bootstrapServers, KafkaSecurityConfig security) {
-        var props = buildBaseProps(bootstrapServers, security);
+        var props = KafkaSecurityPropsBuilder.base(bootstrapServers, security);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class.getName());
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class.getName());
         props.put(ProducerConfig.ACKS_CONFIG, "all");
         props.put(ProducerConfig.RETRIES_CONFIG, "0");
         return props;
-    }
-
-    private Properties buildBaseProps(String bootstrapServers, KafkaSecurityConfig security) {
-        var props = new Properties();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        switch (security.protocol()) {
-            case PLAINTEXT -> props.put("security.protocol", "PLAINTEXT");
-            case SSL -> {
-                props.put("security.protocol", "SSL");
-                props.put(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG, "PEM");
-                props.put(SslConfigs.SSL_KEYSTORE_CERTIFICATE_CHAIN_CONFIG,
-                    security.encryptedKeystorePem());
-            }
-            case SASL_PLAIN -> {
-                props.put("security.protocol", "SASL_SSL");
-                props.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
-                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
-                    "org.apache.kafka.common.security.plain.PlainLoginModule",
-                    security.encryptedUsername(), security.encryptedPassword()));
-            }
-            case SASL_SCRAM_SHA_256 -> {
-                props.put("security.protocol", "SASL_SSL");
-                props.put(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-256");
-                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
-                    "org.apache.kafka.common.security.scram.ScramLoginModule",
-                    security.encryptedUsername(), security.encryptedPassword()));
-            }
-            case SASL_SCRAM_SHA_512 -> {
-                props.put("security.protocol", "SASL_SSL");
-                props.put(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-512");
-                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
-                    "org.apache.kafka.common.security.scram.ScramLoginModule",
-                    security.encryptedUsername(), security.encryptedPassword()));
-            }
-        }
-        return props;
-    }
-
-    private String buildJaas(String loginModule, String username, String password) {
-        return loginModule + " required username=\"" + username + "\" password=\"" + password + "\";";
     }
 }

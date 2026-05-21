@@ -3,14 +3,6 @@ package it.dls.infrastructure.api.replay;
 import it.dls.application.replay.ReplayMessageUseCase;
 import it.dls.application.replay.ReplayTopicNotResolvableException;
 import it.dls.application.replay.SchemaValidationException;
-import it.dls.domain.cluster.KafkaCluster;
-import it.dls.domain.cluster.KafkaClusterRepository;
-import it.dls.domain.cluster.SchemaRegistryAuthConfig;
-import it.dls.domain.dlqconfig.DlqConfigRepository;
-import it.dls.domain.message.DlqMessage;
-import it.dls.domain.message.MessageRepository;
-import it.dls.domain.shared.EncryptionPort;
-import it.dls.domain.shared.SchemaRegistryPort;
 import it.dls.infrastructure.api.auth.ErrorResponse;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -28,11 +20,6 @@ import java.util.UUID;
 public class ReplayResource {
 
     @Inject ReplayMessageUseCase replayUseCase;
-    @Inject MessageRepository messageRepo;
-    @Inject DlqConfigRepository configRepo;
-    @Inject KafkaClusterRepository clusterRepo;
-    @Inject SchemaRegistryPort schemaRegistry;
-    @Inject EncryptionPort encryption;
     @Inject JsonWebToken jwt;
 
     @POST
@@ -64,36 +51,13 @@ public class ReplayResource {
             return Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ErrorResponse("INVALID_REQUEST", "payload is required")).build();
         }
-        DlqMessage msg = messageRepo.findById(messageId).orElse(null);
-        if (msg == null) {
+        try {
+            var result = replayUseCase.validatePayload(messageId, req.payload());
+            return Response.ok(new ValidatePayloadResponse(result.valid(), result.error())).build();
+        } catch (IllegalArgumentException e) {
             return Response.status(Response.Status.NOT_FOUND)
-                .entity(new ErrorResponse("NOT_FOUND", "Message not found: " + messageId)).build();
+                .entity(new ErrorResponse("NOT_FOUND", e.getMessage())).build();
         }
-        if (msg.getSchemaId() == null) {
-            return Response.ok(new ValidatePayloadResponse(true, null)).build();
-        }
-        KafkaCluster cluster = resolveCluster(msg);
-        if (cluster == null || cluster.getSchemaRegistry() == null) {
-            return Response.ok(new ValidatePayloadResponse(true, null)).build();
-        }
-        var srAuth = decryptAuth(cluster.getSchemaRegistry().authConfig());
-        var result = schemaRegistry.validate(req.payload(), msg.getSchemaId(),
-            cluster.getSchemaRegistry().url(), srAuth);
-        return Response.ok(new ValidatePayloadResponse(result.valid(), result.error())).build();
-    }
-
-    private KafkaCluster resolveCluster(DlqMessage msg) {
-        return configRepo.findById(msg.getDlqConfigId())
-            .flatMap(c -> clusterRepo.findById(c.getClusterId()))
-            .orElse(null);
-    }
-
-    private SchemaRegistryAuthConfig decryptAuth(SchemaRegistryAuthConfig enc) {
-        if (!enc.hasCredentials()) return SchemaRegistryAuthConfig.none();
-        return new SchemaRegistryAuthConfig(
-            encryption.decrypt(enc.encryptedUsername()),
-            encryption.decrypt(enc.encryptedPassword())
-        );
     }
 
     private UUID currentUserId() {

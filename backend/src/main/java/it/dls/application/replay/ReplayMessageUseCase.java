@@ -13,6 +13,7 @@ import it.dls.domain.shared.EncryptionPort;
 import it.dls.domain.shared.KafkaProducerPort;
 import it.dls.domain.shared.NotificationPort;
 import it.dls.domain.shared.SchemaRegistryPort;
+import it.dls.domain.shared.ValidationResult;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -72,15 +73,34 @@ public class ReplayMessageUseCase {
             messageRepo.save(msg);
             auditRepo.save(ReplayAuditRecord.success(messageId, replayedBy,
                 targetTopic, editedPayload != null));
-            notifier.emitMessageStatusChanged(messageId, msg.getDlqConfigId(), "REPLAYED");
+            safeNotify(() -> notifier.emitMessageStatusChanged(
+                messageId, msg.getDlqConfigId(), "REPLAYED"));
             return ReplayResult.success(targetTopic);
         } catch (Exception e) {
             msg.transitionTo(MessageStatus.REPLAY_FAILED);
             messageRepo.save(msg);
             auditRepo.save(ReplayAuditRecord.failure(messageId, replayedBy, e.getMessage()));
-            notifier.emitMessageStatusChanged(messageId, msg.getDlqConfigId(), "REPLAY_FAILED");
+            safeNotify(() -> notifier.emitMessageStatusChanged(
+                messageId, msg.getDlqConfigId(), "REPLAY_FAILED"));
             return ReplayResult.failure(e.getMessage());
         }
+    }
+
+    public ValidationResult validatePayload(UUID messageId, JsonNode payload) {
+        var msg = messageRepo.findById(messageId)
+            .orElseThrow(() -> new IllegalArgumentException("Message not found: " + messageId));
+        if (msg.getSchemaId() == null) return ValidationResult.ok();
+        var config = configRepo.findById(msg.getDlqConfigId()).orElse(null);
+        var cluster = config != null ? clusterRepo.findById(config.getClusterId()).orElse(null) : null;
+        if (cluster == null || cluster.getSchemaRegistry() == null)
+            return ValidationResult.ok();
+        var srAuth = decryptSchemaRegistryAuth(cluster.getSchemaRegistry().authConfig());
+        return schemaRegistry.validate(payload, msg.getSchemaId(),
+            cluster.getSchemaRegistry().url(), srAuth);
+    }
+
+    private void safeNotify(Runnable r) {
+        try { r.run(); } catch (Exception ignored) {}
     }
 
     private KafkaSecurityConfig decryptSecurity(KafkaSecurityConfig enc) {

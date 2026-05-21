@@ -138,7 +138,7 @@ export default function MessageDetailPage() {
         </div>
 
         {/* Actions */}
-        {(msg.status === 'NEW' || msg.status === 'UNDER_REVIEW') && (
+        {(msg.status === 'NEW' || msg.status === 'UNDER_REVIEW' || msg.status === 'REPLAY_FAILED') && (
           <div className="flex gap-2 mb-6">
             {msg.status === 'NEW' && (
               <Button
