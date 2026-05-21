@@ -14,6 +14,7 @@ public class DlqConfig {
     private FetchConfig fetchConfig;
     private RetentionPolicy retentionPolicy;
     private UUID schemaRegistryId;  // nullable
+    private String defaultReplayTopic;  // nullable — overrides x-original-topic header
     private final List<UserAssignment> userAssignments = new ArrayList<>();
     private final List<PartitionOffset> partitionOffsets = new ArrayList<>();
 
@@ -47,6 +48,15 @@ public class DlqConfig {
                                          FetchConfig fetchConfig, RetentionPolicy retentionPolicy,
                                          UUID schemaRegistryId, List<UserAssignment> assignments,
                                          List<PartitionOffset> partitionOffsets) {
+        return reconstitute(id, clusterId, topicName, displayName, fetchConfig, retentionPolicy,
+            schemaRegistryId, assignments, partitionOffsets, null);
+    }
+
+    public static DlqConfig reconstitute(UUID id, UUID clusterId, String topicName, String displayName,
+                                         FetchConfig fetchConfig, RetentionPolicy retentionPolicy,
+                                         UUID schemaRegistryId, List<UserAssignment> assignments,
+                                         List<PartitionOffset> partitionOffsets,
+                                         String defaultReplayTopic) {
         var c = new DlqConfig();
         c.id = id;
         c.clusterId = clusterId;
@@ -55,6 +65,7 @@ public class DlqConfig {
         c.fetchConfig = fetchConfig;
         c.retentionPolicy = retentionPolicy;
         c.schemaRegistryId = schemaRegistryId;
+        c.defaultReplayTopic = defaultReplayTopic;
         if (assignments != null) c.userAssignments.addAll(assignments);
         if (partitionOffsets != null) c.partitionOffsets.addAll(partitionOffsets);
         return c;
@@ -74,6 +85,8 @@ public class DlqConfig {
         partitionOffsets.add(new PartitionOffset(partition, lastOffset));
     }
 
+    public void setDefaultReplayTopic(String topic) { this.defaultReplayTopic = topic; }
+
     public UUID getId() { return id; }
     public UUID getClusterId() { return clusterId; }
     public String getTopicName() { return topicName; }
@@ -81,6 +94,7 @@ public class DlqConfig {
     public FetchConfig getFetchConfig() { return fetchConfig; }
     public RetentionPolicy getRetentionPolicy() { return retentionPolicy; }
     public UUID getSchemaRegistryId() { return schemaRegistryId; }
+    public String getDefaultReplayTopic() { return defaultReplayTopic; }
     public List<UserAssignment> getUserAssignments() { return Collections.unmodifiableList(userAssignments); }
     public List<PartitionOffset> getPartitionOffsets() { return Collections.unmodifiableList(partitionOffsets); }
 }

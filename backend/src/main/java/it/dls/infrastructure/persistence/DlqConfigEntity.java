@@ -46,6 +46,9 @@ public class DlqConfigEntity extends PanacheEntityBase {
     @Column(name = "schema_registry_id", columnDefinition = "uuid")
     public UUID schemaRegistryId;
 
+    @Column(name = "default_replay_topic")
+    public String defaultReplayTopic;
+
     @Column(name = "created_at")
     public Instant createdAt;
 
@@ -70,6 +73,7 @@ public class DlqConfigEntity extends PanacheEntityBase {
         e.retentionType = c.getRetentionPolicy().type();
         e.retentionValue = c.getRetentionPolicy().value();
         e.schemaRegistryId = c.getSchemaRegistryId();
+        e.defaultReplayTopic = c.getDefaultReplayTopic();
         e.createdAt = Instant.now();
         e.updatedAt = Instant.now();
         for (var a : c.getUserAssignments()) {
@@ -96,6 +100,6 @@ public class DlqConfigEntity extends PanacheEntityBase {
             .map(PartitionOffsetEntity::toDomain)
             .collect(Collectors.toList());
         return DlqConfig.reconstitute(id, clusterId, topicName, displayName,
-            fetch, retention, schemaRegistryId, userAssignments, offsets);
+            fetch, retention, schemaRegistryId, userAssignments, offsets, defaultReplayTopic);
     }
 }
