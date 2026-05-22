@@ -25,6 +25,7 @@ test('create cluster with unreachable SR shows blocking error', async ({ page })
     }
   })
   await page.goto('/clusters/new')
+  await page.getByLabel('Name').fill('Test Cluster')
   await page.getByLabel('Bootstrap Servers').fill('localhost:9092')
   await page.getByLabel('Schema Registry URL (optional)').fill('http://unreachable:8081')
   await page.getByRole('button', { name: 'Save Cluster' }).click()

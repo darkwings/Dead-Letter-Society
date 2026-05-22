@@ -73,8 +73,11 @@ test('discard button sends DISCARDED status', async ({ page }) => {
 
 test('message not found shows error state', async ({ page }) => {
   await page.route(`/api/messages/${MSG_ID}`, (route) =>
-    route.fulfill({ status: 404, json: { code: 'NOT_FOUND', message: 'Message not found' } })
+    route.fulfill({ status: 404, json: { code: 'NOT_FOUND', message: 'not found' } })
   )
   await page.goto(`/messages/${MSG_ID}`)
-  await expect(page.getByText('Message not found')).toBeVisible()
+  await expect(page.getByTestId('message-unavailable')).toHaveText(
+    'Message no longer available.'
+  )
+  await expect(page.getByRole('link', { name: 'Back to list' })).toBeVisible()
 })

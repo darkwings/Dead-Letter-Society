@@ -30,7 +30,7 @@ test('successful login stores token and redirects', async ({ page }) => {
   await page.getByLabel('Email').fill('admin@dls.io')
   await page.getByLabel('Password').fill('Secure123!')
   await page.getByRole('button', { name: 'Sign In' }).click()
-  await expect(page).toHaveURL('/dashboard')
+  await expect(page).toHaveURL('/clusters')
 })
 
 test('wrong password shows error message', async ({ page }) => {

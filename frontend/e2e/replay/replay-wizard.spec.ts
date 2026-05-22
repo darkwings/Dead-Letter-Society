@@ -48,13 +48,14 @@ test('replay wizard completes successfully', async ({ page }) => {
   await page.getByTestId('replay-button').click()
 
   // Step 1 — review topic
-  await expect(page.getByText('Step 1 of 3')).toBeVisible()
-  await expect(page.getByText('orders')).toBeVisible()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText('Step 1 of 3')).toBeVisible()
+  await expect(dialog.getByText('orders')).toBeVisible()
   await page.getByRole('button', { name: 'Next' }).click()
 
   // Step 3 — confirm (skipped edit since no override)
-  await expect(page.getByText('Step 3 of 3')).toBeVisible()
-  await expect(page.getByText('orders')).toBeVisible()
+  await expect(dialog.getByText('Step 3 of 3')).toBeVisible()
+  await expect(dialog.getByText('orders')).toBeVisible()
   await page.getByRole('button', { name: 'Confirm Replay' }).click()
 
   await expect(page.getByText('Replay successful')).toBeVisible()

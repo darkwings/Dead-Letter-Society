@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import NoteThread from '@/components/NoteThread'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
 import RouteGuard from '@/components/RouteGuard'
+import { useSSE } from '@/hooks/useSSE'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -51,6 +52,19 @@ export default function MessageDetailPage() {
     enabled: !!messageId,
   })
 
+  const onSseEvent = useCallback(
+    (event: { type: string; data?: Record<string, unknown> }) => {
+      if (
+        event.type === 'MESSAGE_STATUS_CHANGED' &&
+        event.data?.messageId === messageId
+      ) {
+        queryClient.invalidateQueries({ queryKey: ['message', messageId] })
+      }
+    },
+    [messageId, queryClient],
+  )
+  useSSE(onSseEvent)
+
   const statusMutation = useMutation({
     mutationFn: (status: string) =>
       apiFetch<MessageDetail>(`/api/messages/${messageId}/status`, {
@@ -75,12 +89,15 @@ export default function MessageDetailPage() {
   }
 
   if (error || !msg) {
+    const is404 = error && (error as { status?: number }).status === 404
     return (
       <RouteGuard>
         <div className="p-8">
-          <p className="t-small text-destructive">Message not found.</p>
-          <Link to="/clusters" className="text-sm hover:underline mt-2 block">
-            Back to clusters
+          <p className="t-small text-destructive" data-testid="message-unavailable">
+            {is404 ? 'Message no longer available.' : 'Message not found.'}
+          </p>
+          <Link to=".." relative="path" className="text-sm hover:underline mt-2 block">
+            Back to list
           </Link>
         </div>
       </RouteGuard>

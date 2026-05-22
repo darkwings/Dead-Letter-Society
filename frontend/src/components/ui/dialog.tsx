@@ -15,7 +15,7 @@ export function Dialog({ open, onClose, children }: DialogProps) {
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative z-10 bg-background border rounded-lg shadow-lg w-full max-w-lg mx-4 p-6">
+      <div role="dialog" className="relative z-10 bg-background border rounded-lg shadow-lg w-full max-w-lg mx-4 p-6">
         {children}
       </div>
     </div>
