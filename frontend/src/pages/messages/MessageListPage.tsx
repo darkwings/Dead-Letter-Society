@@ -1,26 +1,8 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
-import RouteGuard from '@/components/RouteGuard'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { StatusBadge } from '@/components/StatusBadge'
 
 interface MessageSummary {
   id: string
@@ -42,14 +24,6 @@ interface MessagePageResponse {
 }
 
 const PAGE_SIZE = 20
-
-const STATUS_COLORS: Record<string, string> = {
-  NEW: 'bg-blue-100 text-blue-800',
-  UNDER_REVIEW: 'bg-yellow-100 text-yellow-800',
-  DISCARDED: 'bg-gray-100 text-gray-600',
-  REPLAYED: 'bg-green-100 text-green-800',
-  REPLAY_FAILED: 'bg-red-100 text-red-800',
-}
 
 export default function MessageListPage() {
   const { configId } = useParams<{ configId: string }>()
@@ -100,153 +74,142 @@ export default function MessageListPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
-    <RouteGuard>
-      <div className="p-8">
-        <h1 className="t-h1 mb-6">Messages</h1>
+    <div style={{ padding: 32 }}>
+      <h1 className="t-h1" style={{ marginBottom: 24 }}>Messages</h1>
 
-        {/* Filter panel */}
-        <div className="flex flex-wrap gap-4 mb-6 p-4 border rounded-lg bg-card">
-          <div className="flex flex-col gap-1 min-w-36">
-            <Label htmlFor="status-filter">Status</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger id="status-filter" aria-label="Status">
-                <SelectValue placeholder="All statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All</SelectItem>
-                <SelectItem value="NEW">New</SelectItem>
-                <SelectItem value="UNDER_REVIEW">Under Review</SelectItem>
-                <SelectItem value="DISCARDED">Discarded</SelectItem>
-                <SelectItem value="REPLAYED">Replayed</SelectItem>
-                <SelectItem value="REPLAY_FAILED">Replay Failed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="from-filter">From</Label>
-            <Input
-              id="from-filter"
-              type="date"
-              value={fromFilter}
-              onChange={(e) => setFromFilter(e.target.value)}
-              className="w-40"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="to-filter">To</Label>
-            <Input
-              id="to-filter"
-              type="date"
-              value={toFilter}
-              onChange={(e) => setToFilter(e.target.value)}
-              className="w-40"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="partition-filter">Partition</Label>
-            <Input
-              id="partition-filter"
-              type="number"
-              min={0}
-              value={partitionFilter}
-              onChange={(e) => setPartitionFilter(e.target.value)}
-              placeholder="Any"
-              className="w-24"
-            />
-          </div>
-          <div className="flex items-end">
-            <Button onClick={applyFilters}>Apply Filters</Button>
-          </div>
+      <div className="card" style={{ padding: 16, marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 140 }}>
+          <label htmlFor="status-filter" style={{ fontSize: 12, fontWeight: 500 }}>Status</label>
+          <select
+            id="status-filter"
+            aria-label="Status"
+            className="select"
+            style={{ width: 'auto' }}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="ALL">All</option>
+            <option value="NEW">New</option>
+            <option value="UNDER_REVIEW">Under Review</option>
+            <option value="DISCARDED">Discarded</option>
+            <option value="REPLAYED">Replayed</option>
+            <option value="REPLAY_FAILED">Replay Failed</option>
+          </select>
         </div>
 
-        {isLoading ? (
-          <p className="t-small">Loading...</p>
-        ) : messages.length === 0 ? (
-          <p className="t-small text-muted-foreground">No messages found.</p>
-        ) : (
-          <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Partition</TableHead>
-                  <TableHead>Offset</TableHead>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Schema</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label htmlFor="from-filter" style={{ fontSize: 12, fontWeight: 500 }}>From</label>
+          <input
+            id="from-filter"
+            type="date"
+            className="input"
+            style={{ width: 160 }}
+            value={fromFilter}
+            onChange={(e) => setFromFilter(e.target.value)}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label htmlFor="to-filter" style={{ fontSize: 12, fontWeight: 500 }}>To</label>
+          <input
+            id="to-filter"
+            type="date"
+            className="input"
+            style={{ width: 160 }}
+            value={toFilter}
+            onChange={(e) => setToFilter(e.target.value)}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label htmlFor="partition-filter" style={{ fontSize: 12, fontWeight: 500 }}>Partition</label>
+          <input
+            id="partition-filter"
+            type="number"
+            min={0}
+            className="input"
+            style={{ width: 96 }}
+            value={partitionFilter}
+            onChange={(e) => setPartitionFilter(e.target.value)}
+            placeholder="Any"
+          />
+        </div>
+
+        <button className="btn btn-secondary" onClick={applyFilters}>Apply Filters</button>
+      </div>
+
+      {isLoading ? (
+        <p className="t-small">Loading…</p>
+      ) : messages.length === 0 ? (
+        <p className="t-small">No messages found.</p>
+      ) : (
+        <>
+          <div className="card" style={{ overflow: 'hidden', marginBottom: 16 }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Partition</th>
+                  <th>Offset</th>
+                  <th>Timestamp</th>
+                  <th>Status</th>
+                  <th>Schema</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
                 {messages.map((m) => (
-                  <TableRow key={m.id} data-testid="message-row">
-                    <TableCell className="font-mono">{m.partition}</TableCell>
-                    <TableCell className="font-mono">{m.kafkaOffset}</TableCell>
-                    <TableCell className="text-sm">
-                      {new Date(m.kafkaTimestamp).toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        data-testid="status-badge"
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[m.status] ?? ''}`}
-                      >
-                        {m.status.replace('_', ' ')}
-                      </span>
-                    </TableCell>
-                    <TableCell>
+                  <tr key={m.id} data-testid="message-row">
+                    <td style={{ fontFamily: 'monospace' }}>{m.partition}</td>
+                    <td style={{ fontFamily: 'monospace' }}>{m.kafkaOffset}</td>
+                    <td>{new Date(m.kafkaTimestamp).toLocaleString()}</td>
+                    <td>
+                      <StatusBadge status={m.status} testId="status-badge" />
+                    </td>
+                    <td>
                       {m.schemaDecodeFailed && (
-                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                        <span className="badge" style={{ background: 'hsl(var(--warning-muted))', color: 'hsl(var(--warning))', borderColor: 'hsl(var(--warning) / 0.3)' }}>
                           Decode Failed
                         </span>
                       )}
                       {m.schemaId && !m.schemaDecodeFailed && (
-                        <span className="text-xs text-muted-foreground">
-                          schema #{m.schemaId}
-                        </span>
+                        <span className="t-small">schema #{m.schemaId}</span>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link
-                        to={`/messages/${m.id}`}
-                        className="text-sm font-medium hover:underline"
-                      >
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <Link to={`/messages/${m.id}`} className="btn btn-ghost btn-sm">
                         View
                       </Link>
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
+          </div>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between mt-4">
-              <p className="t-small text-muted-foreground">
-                {total} message{total !== 1 ? 's' : ''} total
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                <span className="flex items-center text-sm px-2">
-                  {page + 1} / {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages - 1}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <p className="t-small">
+              {total} message{total !== 1 ? 's' : ''} total
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Previous
+              </button>
+              <span className="t-small">{page + 1} / {totalPages}</span>
+              <button
+                className="btn btn-secondary btn-sm"
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </button>
             </div>
-          </>
-        )}
-      </div>
-    </RouteGuard>
+          </div>
+        </>
+      )}
+    </div>
   )
 }

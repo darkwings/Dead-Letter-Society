@@ -3,8 +3,6 @@ import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
 import { useSSE, type SseEvent } from '@/hooks/useSSE'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 
 interface Note {
   id: string
@@ -63,57 +61,56 @@ export default function NoteThread({ messageId }: NoteThreadProps) {
   }
 
   return (
-    <div className="space-y-4">
-      {isLoading && <p className="t-small text-muted-foreground">Loading notes…</p>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {isLoading && <p className="t-small">Loading notes…</p>}
 
       {!isLoading && notes.length === 0 && (
-        <p className="t-small text-muted-foreground">No notes yet.</p>
+        <p className="t-small">No notes yet.</p>
       )}
 
       {notes.map((note) => (
-        <div key={note.id} className="rounded-md border p-3 space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{note.authorDisplayName}</span>
-            <span className="t-small text-muted-foreground">
-              {new Date(note.createdAt).toLocaleString()}
-            </span>
+        <div key={note.id} className="card" style={{ padding: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 500 }}>{note.authorDisplayName}</span>
+            <span className="t-small">{new Date(note.createdAt).toLocaleString()}</span>
             {note.ticketReference && (
-              <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-mono text-blue-800">
+              <span className="badge" style={{
+                background: 'hsl(var(--info-muted))', color: 'hsl(var(--info))',
+                borderColor: 'hsl(var(--info) / 0.3)', fontFamily: 'monospace', letterSpacing: 0,
+              }}>
                 {note.ticketReference}
               </span>
             )}
           </div>
-          <p className="text-sm">{note.content}</p>
+          <p style={{ fontSize: 12, lineHeight: 1.5 }}>{note.content}</p>
         </div>
       ))}
 
-      <form onSubmit={handleSubmit} className="space-y-2">
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <textarea
+          className="textarea"
           placeholder="Add a note..."
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={3}
-          className={cn(
-            'w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none resize-none',
-            'placeholder:text-muted-foreground',
-            'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
-          )}
+          style={{ resize: 'none' }}
         />
-        <div className="flex items-center gap-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
             type="text"
+            className="input"
+            style={{ width: 192 }}
             placeholder="Ticket ref (optional)"
             value={ticketRef}
             onChange={(e) => setTicketRef(e.target.value)}
-            className={cn(
-              'h-9 w-48 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none',
-              'placeholder:text-muted-foreground',
-              'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
-            )}
           />
-          <Button type="submit" disabled={mutation.isPending || !content.trim()}>
+          <button
+            type="submit"
+            className="btn btn-primary btn-sm"
+            disabled={mutation.isPending || !content.trim()}
+          >
             {mutation.isPending ? 'Adding…' : 'Add Note'}
-          </Button>
+          </button>
         </div>
       </form>
     </div>

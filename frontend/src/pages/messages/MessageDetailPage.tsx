@@ -4,17 +4,8 @@ import NoteThread from '@/components/NoteThread'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
-import RouteGuard from '@/components/RouteGuard'
 import { useSSE } from '@/hooks/useSSE'
-import { Button } from '@/components/ui/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { StatusBadge } from '@/components/StatusBadge'
 import ReplayWizard from './ReplayWizard'
 
 interface MessageDetail {
@@ -31,14 +22,6 @@ interface MessageDetail {
   rawPayload: string | null
   key: string | null
   headers: Record<string, string>
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  NEW: 'bg-blue-100 text-blue-800',
-  UNDER_REVIEW: 'bg-yellow-100 text-yellow-800',
-  DISCARDED: 'bg-gray-100 text-gray-600',
-  REPLAYED: 'bg-green-100 text-green-800',
-  REPLAY_FAILED: 'bg-red-100 text-red-800',
 }
 
 export default function MessageDetailPage() {
@@ -80,172 +63,156 @@ export default function MessageDetailPage() {
 
   if (isLoading) {
     return (
-      <RouteGuard>
-        <div className="p-8">
-          <p className="t-small">Loading...</p>
-        </div>
-      </RouteGuard>
+      <div style={{ padding: 32 }}>
+        <p className="t-small">Loading…</p>
+      </div>
     )
   }
 
   if (error || !msg) {
     const is404 = error && (error as { status?: number }).status === 404
     return (
-      <RouteGuard>
-        <div className="p-8">
-          <p className="t-small text-destructive" data-testid="message-unavailable">
-            {is404 ? 'Message no longer available.' : 'Message not found.'}
-          </p>
-          <Link to=".." relative="path" className="text-sm hover:underline mt-2 block">
-            Back to list
-          </Link>
-        </div>
-      </RouteGuard>
+      <div style={{ padding: 32 }}>
+        <p className="t-small" style={{ color: 'hsl(var(--destructive))' }} data-testid="message-unavailable">
+          {is404 ? 'Message no longer available.' : 'Message not found.'}
+        </p>
+        <Link to=".." relative="path" style={{ fontSize: 12, color: 'hsl(var(--primary))', textDecoration: 'none', display: 'block', marginTop: 8 }}>
+          Back to list
+        </Link>
+      </div>
     )
   }
 
   const headerEntries = Object.entries(msg.headers ?? {})
 
   return (
-    <RouteGuard>
-      <div className="p-8 max-w-4xl">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="t-h1 mb-1">Message Detail</h1>
-            <p className="font-mono text-sm text-muted-foreground">{msg.id}</p>
-          </div>
-          <span
-            data-testid="status-badge"
-            className={`px-3 py-1 rounded text-sm font-medium ${STATUS_COLORS[msg.status] ?? ''}`}
-          >
-            {msg.status.replace('_', ' ')}
-          </span>
+    <div style={{ padding: 32, maxWidth: 900 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div>
+          <h1 className="t-h1" style={{ marginBottom: 4 }}>Message Detail</h1>
+          <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{msg.id}</p>
         </div>
+        <StatusBadge status={msg.status} testId="status-badge" />
+      </div>
 
-        {/* Metadata */}
-        <div className="grid grid-cols-2 gap-4 mb-6 p-4 border rounded-lg bg-card">
-          <div>
-            <p className="text-xs text-muted-foreground">DLQ Config</p>
-            <p className="font-mono text-sm">{msg.dlqConfigId}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Partition / Offset</p>
-            <p className="font-mono text-sm">{msg.partition} / {msg.kafkaOffset}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Kafka Timestamp</p>
-            <p className="text-sm">{new Date(msg.kafkaTimestamp).toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Ingested At</p>
-            <p className="text-sm">{new Date(msg.ingestedAt).toLocaleString()}</p>
-          </div>
-          {msg.schemaId && (
-            <div>
-              <p className="text-xs text-muted-foreground">Schema ID</p>
-              <p className="font-mono text-sm">
-                {msg.schemaId}
-                {msg.schemaDecodeFailed && (
-                  <span className="ml-2 text-orange-600">(decode failed)</span>
-                )}
-              </p>
-            </div>
-          )}
+      <div className="card" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, padding: 16, marginBottom: 24 }}>
+        <div>
+          <p className="t-small" style={{ marginBottom: 2 }}>DLQ Config</p>
+          <p style={{ fontFamily: 'monospace', fontSize: 12 }}>{msg.dlqConfigId}</p>
         </div>
+        <div>
+          <p className="t-small" style={{ marginBottom: 2 }}>Partition / Offset</p>
+          <p style={{ fontFamily: 'monospace', fontSize: 12 }}>{msg.partition} / {msg.kafkaOffset}</p>
+        </div>
+        <div>
+          <p className="t-small" style={{ marginBottom: 2 }}>Kafka Timestamp</p>
+          <p style={{ fontSize: 12 }}>{new Date(msg.kafkaTimestamp).toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="t-small" style={{ marginBottom: 2 }}>Ingested At</p>
+          <p style={{ fontSize: 12 }}>{new Date(msg.ingestedAt).toLocaleString()}</p>
+        </div>
+        {msg.schemaId && (
+          <div>
+            <p className="t-small" style={{ marginBottom: 2 }}>Schema ID</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 12 }}>
+              {msg.schemaId}
+              {msg.schemaDecodeFailed && (
+                <span style={{ marginLeft: 8, color: 'hsl(var(--warning))' }}>(decode failed)</span>
+              )}
+            </p>
+          </div>
+        )}
+      </div>
 
-        {/* Actions */}
-        {(msg.status === 'NEW' || msg.status === 'UNDER_REVIEW' || msg.status === 'REPLAY_FAILED') && (
-          <div className="flex gap-2 mb-6">
-            {msg.status === 'NEW' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => statusMutation.mutate('UNDER_REVIEW')}
-                disabled={statusMutation.isPending}
-              >
-                Mark Under Review
-              </Button>
-            )}
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => statusMutation.mutate('DISCARDED')}
+      {(msg.status === 'NEW' || msg.status === 'UNDER_REVIEW' || msg.status === 'REPLAY_FAILED') && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+          {msg.status === 'NEW' && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => statusMutation.mutate('UNDER_REVIEW')}
               disabled={statusMutation.isPending}
             >
-              Discard
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowReplay(true)}
-              data-testid="replay-button"
-            >
-              Replay
-            </Button>
-          </div>
+              Mark Under Review
+            </button>
+          )}
+          <button
+            className="btn btn-destructive btn-sm"
+            onClick={() => statusMutation.mutate('DISCARDED')}
+            disabled={statusMutation.isPending}
+          >
+            Discard
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setShowReplay(true)}
+            data-testid="replay-button"
+          >
+            Replay
+          </button>
+        </div>
+      )}
+
+      <section style={{ marginBottom: 24 }}>
+        <h2 className="t-h2" style={{ marginBottom: 8 }}>Decoded Payload</h2>
+        {msg.decodedPayload ? (
+          <pre
+            data-testid="decoded-payload"
+            className="card json"
+            style={{ padding: 16, overflow: 'auto', maxHeight: 320, fontSize: 12 }}
+          >
+            {JSON.stringify(msg.decodedPayload, null, 2)}
+          </pre>
+        ) : (
+          <p className="t-small">
+            {msg.schemaDecodeFailed ? 'Schema decode failed.' : 'No decoded payload (raw message).'}
+          </p>
         )}
+      </section>
 
-        {/* Decoded Payload */}
-        <section className="mb-6">
-          <h2 className="t-h2 mb-2">Decoded Payload</h2>
-          {msg.decodedPayload ? (
-            <pre
-              data-testid="decoded-payload"
-              className="p-4 rounded border bg-muted text-sm overflow-auto max-h-80"
-            >
-              {JSON.stringify(msg.decodedPayload, null, 2)}
-            </pre>
-          ) : (
-            <p className="t-small text-muted-foreground">
-              {msg.schemaDecodeFailed ? 'Schema decode failed.' : 'No decoded payload (raw message).'}
-            </p>
-          )}
-        </section>
+      <section style={{ marginBottom: 24 }}>
+        <h2 className="t-h2" style={{ marginBottom: 8 }}>Raw Payload</h2>
+        {msg.rawPayload ? (
+          <pre
+            data-testid="raw-payload"
+            className="card t-code"
+            style={{ padding: 16, overflow: 'auto', maxHeight: 160, wordBreak: 'break-all' }}
+          >
+            {msg.rawPayload}
+          </pre>
+        ) : (
+          <p className="t-small">Empty payload.</p>
+        )}
+      </section>
 
-        {/* Raw Payload */}
-        <section className="mb-6">
-          <h2 className="t-h2 mb-2">Raw Payload</h2>
-          {msg.rawPayload ? (
-            <pre
-              data-testid="raw-payload"
-              className="p-4 rounded border bg-muted font-mono text-xs overflow-auto max-h-40 break-all"
-            >
-              {msg.rawPayload}
-            </pre>
-          ) : (
-            <p className="t-small text-muted-foreground">Empty payload.</p>
-          )}
-        </section>
-
-        {/* Headers */}
-        {headerEntries.length > 0 && (
-          <section className="mb-6">
-            <h2 className="t-h2 mb-2">Headers</h2>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Key</TableHead>
-                  <TableHead>Value</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+      {headerEntries.length > 0 && (
+        <section style={{ marginBottom: 24 }}>
+          <h2 className="t-h2" style={{ marginBottom: 8 }}>Headers</h2>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
                 {headerEntries.map(([k, v]) => (
-                  <TableRow key={k}>
-                    <TableCell className="font-mono text-sm">{k}</TableCell>
-                    <TableCell className="font-mono text-sm">{v}</TableCell>
-                  </TableRow>
+                  <tr key={k}>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{k}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{v}</td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
-          </section>
-        )}
-
-        <section className="mb-6 p-4 border rounded-lg bg-card">
-          <h2 className="t-h2 mb-4">Notes</h2>
-          {messageId && <NoteThread messageId={messageId} />}
+              </tbody>
+            </table>
+          </div>
         </section>
-      </div>
+      )}
+
+      <section className="card" style={{ padding: 16, marginBottom: 24 }}>
+        <h2 className="t-h2" style={{ marginBottom: 16 }}>Notes</h2>
+        {messageId && <NoteThread messageId={messageId} />}
+      </section>
 
       {showReplay && messageId && (
         <ReplayWizard
@@ -256,6 +223,6 @@ export default function MessageDetailPage() {
           onClose={() => setShowReplay(false)}
         />
       )}
-    </RouteGuard>
+    </div>
   )
 }

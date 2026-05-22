@@ -2,9 +2,6 @@ import { useState, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Dialog, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
 interface ReplayWizardProps {
@@ -105,57 +102,64 @@ export default function ReplayWizard({
 
       {step === 'review' && (
         <div>
-          <p className="t-small text-muted-foreground mb-4">
+          <p className="t-small" style={{ marginBottom: 16 }}>
             Step 1 of 3 — Review target topic
           </p>
-          <div className="mb-4">
-            <Label htmlFor="topic-override">Target Topic</Label>
-            <Input
+          <div style={{ marginBottom: 16 }}>
+            <label htmlFor="topic-override" style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
+              Target Topic
+            </label>
+            <input
               id="topic-override"
               data-testid="topic-override"
-              className="mt-1 font-mono"
+              className="input"
+              style={{ fontFamily: 'monospace' }}
               placeholder={resolvedTopic ?? 'No topic resolved'}
               value={topicOverride}
               onChange={(e) => setTopicOverride(e.target.value)}
             />
             {resolvedTopic && !topicOverride && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Will use: <span className="font-mono">{resolvedTopic}</span>
+              <p className="t-small" style={{ marginTop: 4 }}>
+                Will use: <span style={{ fontFamily: 'monospace' }}>{resolvedTopic}</span>
               </p>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
             {hasDecodedPayload && (
-              <Button
-                variant="outline"
+              <button
+                className="btn btn-secondary"
                 onClick={() => setStep('edit')}
                 disabled={!effectiveTopic}
               >
                 Edit Payload
-              </Button>
+              </button>
             )}
-            <Button
+            <button
+              className="btn btn-primary"
               onClick={() => setStep('confirm')}
               disabled={!effectiveTopic}
             >
               Next
-            </Button>
+            </button>
           </DialogFooter>
         </div>
       )}
 
       {step === 'edit' && (
         <div>
-          <p className="t-small text-muted-foreground mb-4">
+          <p className="t-small" style={{ marginBottom: 16 }}>
             Step 2 of 3 — Edit payload (optional)
           </p>
-          <div className="mb-4">
-            <Label htmlFor="payload-editor">Payload JSON</Label>
+          <div style={{ marginBottom: 16 }}>
+            <label htmlFor="payload-editor" style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>
+              Payload JSON
+            </label>
             <textarea
               id="payload-editor"
               data-testid="payload-editor"
-              className="mt-1 w-full h-48 font-mono text-sm p-2 border rounded bg-muted resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              className="textarea t-code"
+              style={{ height: 192, resize: 'none' }}
               value={payloadText}
               onChange={(e) => {
                 setPayloadText(e.target.value)
@@ -164,14 +168,15 @@ export default function ReplayWizard({
               }}
             />
             {validationError && (
-              <p className="text-xs text-destructive mt-1" data-testid="validation-error">
+              <p data-testid="validation-error" style={{ fontSize: 11, color: 'hsl(var(--destructive))', marginTop: 4 }}>
                 {validationError}
               </p>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStep('review')}>Back</Button>
-            <Button
+            <button className="btn btn-secondary" onClick={() => setStep('review')}>Back</button>
+            <button
+              className="btn btn-primary"
               onClick={async () => {
                 if (!payloadEdited || !payloadText) { setStep('confirm'); return }
                 const valid = await validateMutation(payloadText)
@@ -179,39 +184,40 @@ export default function ReplayWizard({
               }}
               disabled={isValidating}
             >
-              {isValidating ? 'Validating...' : 'Next'}
-            </Button>
+              {isValidating ? 'Validating…' : 'Next'}
+            </button>
           </DialogFooter>
         </div>
       )}
 
       {step === 'confirm' && (
         <div>
-          <p className="t-small text-muted-foreground mb-4">
+          <p className="t-small" style={{ marginBottom: 16 }}>
             Step 3 of 3 — Confirm replay
           </p>
-          <div className="p-4 rounded border bg-card mb-4 space-y-2">
+          <div className="card" style={{ padding: 16, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div>
-              <p className="text-xs text-muted-foreground">Target Topic</p>
-              <p className="font-mono text-sm">{effectiveTopic}</p>
+              <p className="t-small" style={{ marginBottom: 2 }}>Target Topic</p>
+              <p style={{ fontFamily: 'monospace', fontSize: 12 }}>{effectiveTopic}</p>
             </div>
             {payloadEdited && (
               <div>
-                <p className="text-xs text-muted-foreground">Payload</p>
-                <p className="text-sm">Edited by user</p>
+                <p className="t-small" style={{ marginBottom: 2 }}>Payload</p>
+                <p style={{ fontSize: 12 }}>Edited by user</p>
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStep(hasDecodedPayload ? 'edit' : 'review')}>
+            <button className="btn btn-secondary" onClick={() => setStep(hasDecodedPayload ? 'edit' : 'review')}>
               Back
-            </Button>
-            <Button
+            </button>
+            <button
+              className="btn btn-primary"
               onClick={() => replayMutation.mutate()}
               disabled={replayMutation.isPending || !!validationError}
             >
-              {replayMutation.isPending ? 'Replaying...' : 'Confirm Replay'}
-            </Button>
+              {replayMutation.isPending ? 'Replaying…' : 'Confirm Replay'}
+            </button>
           </DialogFooter>
         </div>
       )}

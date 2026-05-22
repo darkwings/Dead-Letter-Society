@@ -6,14 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
-import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from '@/components/ui/card'
-import {
-  Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 
 const schema = z.object({
   email: z.string().email('Valid email required'),
@@ -37,7 +29,7 @@ export default function SetupPage() {
     }
   }, [setupStatus, navigate])
 
-  const form = useForm<FormValues>({
+  const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { email: '', displayName: '', password: '' },
   })
@@ -65,57 +57,56 @@ export default function SetupPage() {
   if (isLoading) return null
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="t-h2">Create Administrator Account</CardTitle>
-          <CardDescription className="t-small text-muted-foreground">
-            First-time setup — create the initial admin user.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl><Input type="email" placeholder="admin@company.com" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="displayName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Display Name</FormLabel>
-                    <FormControl><Input placeholder="Admin" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl><Input type="password" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full" disabled={mutation.isPending}>
-                {mutation.isPending ? 'Creating…' : 'Create Account'}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'hsl(var(--background))', padding: '0 16px',
+    }}>
+      <div className="card" style={{ width: '100%', maxWidth: 400, padding: 32 }}>
+        <div style={{ marginBottom: 24 }}>
+          <h1 className="t-h2" style={{ marginBottom: 4 }}>Create Administrator Account</h1>
+          <p className="t-small">First-time setup — create the initial admin user.</p>
+        </div>
+
+        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label htmlFor="email" style={{ fontSize: 12, fontWeight: 500 }}>Email</label>
+            <input
+              id="email"
+              type="email"
+              className={`input${errors.email ? ' error' : ''}`}
+              placeholder="admin@company.com"
+              {...register('email')}
+            />
+            {errors.email && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.email.message}</span>}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label htmlFor="displayName" style={{ fontSize: 12, fontWeight: 500 }}>Display Name</label>
+            <input
+              id="displayName"
+              className={`input${errors.displayName ? ' error' : ''}`}
+              placeholder="Admin"
+              {...register('displayName')}
+            />
+            {errors.displayName && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.displayName.message}</span>}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label htmlFor="password" style={{ fontSize: 12, fontWeight: 500 }}>Password</label>
+            <input
+              id="password"
+              type="password"
+              className={`input${errors.password ? ' error' : ''}`}
+              {...register('password')}
+            />
+            {errors.password && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.password.message}</span>}
+          </div>
+
+          <button type="submit" className="btn btn-primary btn-lg" disabled={mutation.isPending} style={{ width: '100%', marginTop: 4 }}>
+            {mutation.isPending ? 'Creating…' : 'Create Account'}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }

@@ -42,8 +42,7 @@ test('filter by status NEW shows only new messages', async ({ page }) => {
     })
   )
   await page.goto(`/dlq-configs/${CONFIG_ID}/messages`)
-  await page.getByRole('combobox', { name: 'Status' }).click()
-  await page.getByRole('option', { name: 'New' }).click()
+  await page.getByRole('combobox', { name: 'Status' }).selectOption('NEW')
   await page.getByRole('button', { name: 'Apply Filters' }).click()
   const rows = page.getByTestId('message-row')
   for (const row of await rows.all()) {

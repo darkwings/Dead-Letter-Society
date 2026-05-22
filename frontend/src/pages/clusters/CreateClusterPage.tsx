@@ -5,25 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
-import RouteGuard from '@/components/RouteGuard'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
 const PROTOCOLS = [
   'PLAINTEXT',
@@ -56,11 +37,11 @@ type FormValues = z.infer<typeof schema>
 export default function CreateClusterPage() {
   const navigate = useNavigate()
 
-  const form = useForm<FormValues>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { securityProtocol: 'PLAINTEXT' },
   })
-  const protocol = form.watch('securityProtocol')
+  const protocol = watch('securityProtocol')
 
   const mutation = useMutation({
     mutationFn: (data: FormValues) =>
@@ -76,135 +57,77 @@ export default function CreateClusterPage() {
   })
 
   return (
-    <RouteGuard>
-      <div className="p-8 max-w-xl">
-        <h1 className="t-h1 mb-6">Add Kafka Cluster</h1>
-        <Card>
-          <CardHeader>
-            <CardTitle>Cluster Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit((d) => mutation.mutate(d))}
-                className="space-y-4"
-              >
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="bootstrapServers"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Bootstrap Servers</FormLabel>
-                      <FormControl>
-                        <Input placeholder="host:9092" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="securityProtocol"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Security Protocol</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {PROTOCOLS.map((p) => (
-                            <SelectItem key={p} value={p}>
-                              {p}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {SASL_PROTOCOLS.includes(protocol as Protocol) && (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="username"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Username</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="password"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Password</FormLabel>
-                          <FormControl>
-                            <Input type="password" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                )}
-                {protocol === 'SSL' && (
-                  <FormField
-                    control={form.control}
-                    name="keystorePem"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Keystore PEM</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-                <FormField
-                  control={form.control}
-                  name="srUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Schema Registry URL (optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="http://localhost:8081" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" disabled={mutation.isPending} className="w-full">
-                  {mutation.isPending ? 'Saving...' : 'Save Cluster'}
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+    <div style={{ padding: 32, maxWidth: 480 }}>
+      <h1 className="t-h1" style={{ marginBottom: 24 }}>Add Kafka Cluster</h1>
+
+      <div className="card" style={{ padding: 24 }}>
+        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label htmlFor="name" style={{ fontSize: 12, fontWeight: 500 }}>Name</label>
+            <input id="name" className={`input${errors.name ? ' error' : ''}`} {...register('name')} />
+            {errors.name && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.name.message}</span>}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label htmlFor="bootstrapServers" style={{ fontSize: 12, fontWeight: 500 }}>Bootstrap Servers</label>
+            <input
+              id="bootstrapServers"
+              className={`input${errors.bootstrapServers ? ' error' : ''}`}
+              placeholder="host:9092"
+              {...register('bootstrapServers')}
+            />
+            {errors.bootstrapServers && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.bootstrapServers.message}</span>}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label htmlFor="securityProtocol" style={{ fontSize: 12, fontWeight: 500 }}>Security Protocol</label>
+            <select id="securityProtocol" className="select" {...register('securityProtocol')}>
+              {PROTOCOLS.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+
+          {SASL_PROTOCOLS.includes(protocol as Protocol) && (
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label htmlFor="username" style={{ fontSize: 12, fontWeight: 500 }}>Username</label>
+                <input id="username" className="input" {...register('username')} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label htmlFor="clusterPassword" style={{ fontSize: 12, fontWeight: 500 }}>Password</label>
+                <input id="clusterPassword" type="password" className="input" {...register('password')} />
+              </div>
+            </>
+          )}
+
+          {protocol === 'SSL' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label htmlFor="keystorePem" style={{ fontSize: 12, fontWeight: 500 }}>Keystore PEM</label>
+              <input id="keystorePem" className="input" {...register('keystorePem')} />
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label htmlFor="srUrl" style={{ fontSize: 12, fontWeight: 500 }}>Schema Registry URL (optional)</label>
+            <input
+              id="srUrl"
+              className="input"
+              placeholder="http://localhost:8081"
+              {...register('srUrl')}
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={mutation.isPending}
+            style={{ width: '100%', marginTop: 8, height: 34 }}
+          >
+            {mutation.isPending ? 'Saving…' : 'Save Cluster'}
+          </button>
+        </form>
       </div>
-    </RouteGuard>
+    </div>
   )
 }
