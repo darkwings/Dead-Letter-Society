@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
+import { useAuthStore } from '@/stores/authStore'
 
 interface ClusterResponse {
   id: string
@@ -107,6 +108,10 @@ function ClusterNavItem({ cluster, defaultExpanded }: { cluster: ClusterResponse
 }
 
 export default function Sidebar() {
+  const location = useLocation()
+  const user = useAuthStore((s) => s.user)
+  const isAdmin = user?.globalRole === 'ADMIN'
+
   const { data: clusters = [], isLoading } = useQuery({
     queryKey: ['clusters'],
     queryFn: () => apiFetch<ClusterResponse[]>('/api/clusters'),
@@ -140,19 +145,22 @@ export default function Sidebar() {
         )}
       </div>
 
-      <div style={{ padding: '8px 6px', borderTop: '1px solid hsl(var(--border))' }}>
-        <Link
-          to="/clusters/new"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
-            fontSize: 12, color: 'hsl(var(--muted-foreground))', textDecoration: 'none',
-            borderRadius: 'var(--radius)',
-          }}
-        >
-          <span style={{ fontSize: 14, lineHeight: 1 }}>+</span>
-          New cluster
-        </Link>
-      </div>
+      {isAdmin && (
+        <div style={{ padding: '8px 6px', borderTop: '1px solid hsl(var(--border))' }}>
+          <p className="t-h4" style={{ padding: '0 6px', marginBottom: 6 }}>Admin</p>
+          <Link
+            to="/admin/users"
+            style={{
+              display: 'block', padding: '6px 10px', fontSize: 12.5, fontWeight: 500,
+              color: location.pathname.startsWith('/admin/users') ? 'hsl(var(--accent-foreground))' : 'hsl(var(--foreground))',
+              background: location.pathname.startsWith('/admin/users') ? 'hsl(var(--accent))' : 'transparent',
+              textDecoration: 'none', borderRadius: 'var(--radius)',
+            }}
+          >
+            Users
+          </Link>
+        </div>
+      )}
     </nav>
   )
 }

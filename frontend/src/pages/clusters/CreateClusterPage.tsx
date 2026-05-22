@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -36,6 +36,7 @@ type FormValues = z.infer<typeof schema>
 
 export default function CreateClusterPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -47,6 +48,7 @@ export default function CreateClusterPage() {
     mutationFn: (data: FormValues) =>
       apiFetch('/api/clusters', { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clusters'] })
       toast.success('Cluster created')
       navigate('/clusters')
     },
@@ -57,7 +59,7 @@ export default function CreateClusterPage() {
   })
 
   return (
-    <div style={{ padding: 32, maxWidth: 480 }}>
+    <div style={{ padding: 32, maxWidth: 480, margin: '0 auto' }}>
       <h1 className="t-h1" style={{ marginBottom: 24 }}>Add Kafka Cluster</h1>
 
       <div className="card" style={{ padding: 24 }}>

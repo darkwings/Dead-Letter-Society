@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -20,6 +20,7 @@ type FormValues = z.infer<typeof schema>
 export default function CreateDlqConfigPage() {
   const { clusterId } = useParams<{ clusterId: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -40,6 +41,7 @@ export default function CreateDlqConfigPage() {
         body: JSON.stringify(data),
       }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dlq-configs', clusterId] })
       toast.success('DLQ config created')
       navigate(`/clusters/${clusterId}/dlq-configs`)
     },

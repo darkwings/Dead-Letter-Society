@@ -8,6 +8,7 @@ import DlqConfigListPage from '@/pages/dlqconfig/DlqConfigListPage'
 import CreateDlqConfigPage from '@/pages/dlqconfig/CreateDlqConfigPage'
 import MessageListPage from '@/pages/messages/MessageListPage'
 import MessageDetailPage from '@/pages/messages/MessageDetailPage'
+import UsersPage from '@/pages/admin/UsersPage'
 import RouteGuard from '@/components/RouteGuard'
 import AppShell from '@/components/AppShell'
 
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="/clusters/:clusterId/dlq-configs/new" element={<CreateDlqConfigPage />} />
             <Route path="/dlq-configs/:configId/messages" element={<MessageListPage />} />
             <Route path="/messages/:messageId" element={<MessageDetailPage />} />
+            <Route path="/admin/users" element={<UsersPage />} />
           </Route>
           <Route path="*" element={
             <div style={{ padding: 32 }}>

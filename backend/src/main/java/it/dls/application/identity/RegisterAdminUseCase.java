@@ -13,6 +13,15 @@ public class RegisterAdminUseCase {
         this.passwordHash = passwordHash;
     }
 
+    public User createUser(String email, String displayName, String password) {
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new IllegalStateException("Email already in use: " + email);
+        }
+        var user = User.createLocal(email, displayName, passwordHash.hash(password));
+        userRepository.save(user);
+        return user;
+    }
+
     /**
      * Registers the first administrator account.
      * MUST be called within a transaction: the existsAny() check and save() are not atomic otherwise.

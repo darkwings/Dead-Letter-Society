@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
 import { StatusBadge } from '@/components/StatusBadge'
 
@@ -28,6 +29,22 @@ const PAGE_SIZE = 20
 export default function MessageListPage() {
   const { configId } = useParams<{ configId: string }>()
   const queryClient = useQueryClient()
+
+  const fetchMutation = useMutation({
+    mutationFn: () => apiFetch<{ fetched: number }>(`/api/dlq-configs/${configId}/fetch`, { method: 'POST' }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['messages', configId] })
+      toast.success(`Fetched ${data.fetched} new message${data.fetched !== 1 ? 's' : ''}`)
+    },
+    onError: (e: unknown) => {
+      const err = e as { status?: number; body?: { message?: string }; message?: string }
+      if (err.status === 409) {
+        toast.info('A fetch is already in progress.')
+      } else {
+        toast.error(err.body?.message ?? err.message ?? 'Fetch failed')
+      }
+    },
+  })
 
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
   const [fromFilter, setFromFilter] = useState('')
@@ -75,7 +92,16 @@ export default function MessageListPage() {
 
   return (
     <div style={{ padding: 32 }}>
-      <h1 className="t-h1" style={{ marginBottom: 24 }}>Messages</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <h1 className="t-h1">Messages</h1>
+        <button
+          className="btn btn-secondary"
+          onClick={() => fetchMutation.mutate()}
+          disabled={fetchMutation.isPending}
+        >
+          {fetchMutation.isPending ? 'Fetching…' : 'Fetch now'}
+        </button>
+      </div>
 
       <div className="card" style={{ padding: 16, marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 140 }}>

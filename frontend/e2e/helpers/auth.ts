@@ -1,5 +1,18 @@
 import { type Page } from '@playwright/test'
 
+async function stubSidebarRoutes(page: Page) {
+  // Sidebar fetches clusters on every authenticated page; tests that don't
+  // care about clusters get an empty list so the Sidebar renders instantly.
+  // Test-specific routes registered after loginAs* override this (LIFO).
+  await page.route('/api/clusters', (route) => {
+    if (route.request().method() === 'GET') {
+      route.fulfill({ json: [] })
+    } else {
+      route.continue()
+    }
+  })
+}
+
 export async function loginAsAdmin(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -18,6 +31,7 @@ export async function loginAsAdmin(page: Page) {
       })
     )
   })
+  await stubSidebarRoutes(page)
 }
 
 export async function loginAsOperator(page: Page) {
@@ -38,6 +52,7 @@ export async function loginAsOperator(page: Page) {
       })
     )
   })
+  await stubSidebarRoutes(page)
 }
 
 export async function loginAsViewer(page: Page) {
@@ -58,4 +73,5 @@ export async function loginAsViewer(page: Page) {
       })
     )
   })
+  await stubSidebarRoutes(page)
 }
