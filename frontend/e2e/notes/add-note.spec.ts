@@ -58,7 +58,8 @@ test('operator can add a note and it appears immediately', async ({ page }) => {
   await page.getByRole('button', { name: 'Add Note' }).click()
 
   await expect(page.getByText('Investigating payment issue')).toBeVisible()
-  await expect(page.getByText('Operator')).toBeVisible()
+  // TopBar also shows the user's displayName "Operator" — scope to main to avoid strict violation
+  await expect(page.getByRole('main').getByText('Operator')).toBeVisible()
 })
 
 // Playwright route.fulfill sends full body immediately — EventSource sees connection closed,

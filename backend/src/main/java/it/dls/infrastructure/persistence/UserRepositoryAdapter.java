@@ -6,8 +6,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class UserRepositoryAdapter implements UserRepository {
@@ -52,5 +54,13 @@ public class UserRepositoryAdapter implements UserRepository {
     @Transactional(Transactional.TxType.SUPPORTS)
     public boolean existsAny() {
         return UserEntity.count() > 0;
+    }
+
+    @Override
+    @Transactional(Transactional.TxType.SUPPORTS)
+    public List<User> findAll() {
+        return UserEntity.<UserEntity>listAll().stream()
+            .map(UserEntity::toDomain)
+            .collect(Collectors.toList());
     }
 }

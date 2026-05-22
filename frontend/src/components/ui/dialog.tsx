@@ -15,7 +15,7 @@ export function Dialog({ open, onClose, children }: DialogProps) {
         onClick={onClose}
         aria-hidden="true"
       />
-      <div role="dialog" className="relative z-10 bg-background border rounded-lg shadow-lg w-full max-w-lg mx-4 p-6">
+      <div role="dialog" className="card-elevated relative z-10 shadow-lg w-full max-w-lg mx-4 p-6" style={{ borderRadius: 'var(--radius-lg)' }}>
         {children}
       </div>
     </div>
@@ -23,9 +23,9 @@ export function Dialog({ open, onClose, children }: DialogProps) {
 }
 
 export function DialogTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="t-h2 mb-4">{children}</h2>
+  return <h2 className="t-h2" style={{ marginBottom: 16 }}>{children}</h2>
 }
 
 export function DialogFooter({ children }: { children: React.ReactNode }) {
-  return <div className="flex justify-end gap-2 mt-6">{children}</div>
+  return <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>{children}</div>
 }

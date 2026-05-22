@@ -2,16 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '@/lib/api'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import RouteGuard from '@/components/RouteGuard'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 
 interface ClusterResponse {
   id: string
@@ -40,61 +30,57 @@ export default function ClusterListPage() {
   })
 
   return (
-    <RouteGuard>
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="t-h1">Kafka Clusters</h1>
-          <Button asChild>
-            <Link to="/clusters/new">Add Cluster</Link>
-          </Button>
-        </div>
-        {isLoading ? (
-          <p className="t-small">Loading...</p>
-        ) : clusters.length === 0 ? (
-          <p className="t-small text-muted-foreground">
-            No clusters configured. Add one to get started.
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Bootstrap Servers</TableHead>
-                <TableHead>Protocol</TableHead>
-                <TableHead>Schema Registry</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+    <div style={{ padding: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <h1 className="t-h1">Kafka Clusters</h1>
+        <Link to="/clusters/new" className="btn btn-primary">Add Cluster</Link>
+      </div>
+
+      {isLoading ? (
+        <p className="t-small">Loading…</p>
+      ) : clusters.length === 0 ? (
+        <p className="t-small">No clusters configured. Add one to get started.</p>
+      ) : (
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Bootstrap Servers</th>
+                <th>Protocol</th>
+                <th>Schema Registry</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
               {clusters.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell>
+                <tr key={c.id}>
+                  <td>
                     <Link
                       to={`/clusters/${c.id}/dlq-configs`}
-                      className="font-medium hover:underline"
+                      style={{ fontWeight: 500, color: 'hsl(var(--foreground))', textDecoration: 'none' }}
                     >
                       {c.name}
                     </Link>
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">{c.bootstrapServers}</TableCell>
-                  <TableCell>{c.securityProtocol}</TableCell>
-                  <TableCell>{c.hasSchemaRegistry ? 'Yes' : 'No'}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="destructive"
-                      size="sm"
+                  </td>
+                  <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{c.bootstrapServers}</td>
+                  <td>{c.securityProtocol}</td>
+                  <td>{c.hasSchemaRegistry ? 'Yes' : 'No'}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      className="btn btn-destructive btn-sm"
                       onClick={() => deleteMutation.mutate(c.id)}
                       disabled={deleteMutation.isPending}
                     >
                       Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
+                    </button>
+                  </td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
-    </RouteGuard>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   )
 }
