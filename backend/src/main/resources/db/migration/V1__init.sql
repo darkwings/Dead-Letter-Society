@@ -1,0 +1,3 @@
+-- V1__init.sql
+-- Flyway baseline: schema versioning starts here.
+-- Application tables are added in subsequent migrations per feature phase.

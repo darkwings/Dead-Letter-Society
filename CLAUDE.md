@@ -42,8 +42,6 @@ Frontend: React + Vite + TypeScript, TanStack Query, Zustand auth store, Tailwin
 
 ## Current Implementation Status
 
-**Branch:** `phase-0-foundation` (worktree: `.worktrees/phase-0-foundation/`)
-
 | Phase | Status | Summary |
 |-------|--------|---------|
 | 0 — Foundation | ✅ | Backend + frontend scaffold, Docker Compose |
