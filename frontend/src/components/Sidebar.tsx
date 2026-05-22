@@ -148,17 +148,26 @@ export default function Sidebar() {
       {isAdmin && (
         <div style={{ padding: '8px 6px', borderTop: '1px solid hsl(var(--border))' }}>
           <p className="t-h4" style={{ padding: '0 6px', marginBottom: 6 }}>Admin</p>
-          <Link
-            to="/admin/users"
-            style={{
-              display: 'block', padding: '6px 10px', fontSize: 12.5, fontWeight: 500,
-              color: location.pathname.startsWith('/admin/users') ? 'hsl(var(--accent-foreground))' : 'hsl(var(--foreground))',
-              background: location.pathname.startsWith('/admin/users') ? 'hsl(var(--accent))' : 'transparent',
-              textDecoration: 'none', borderRadius: 'var(--radius)',
-            }}
-          >
-            Users
-          </Link>
+          {([
+            { to: '/clusters', label: 'Clusters' },
+            { to: '/admin/users', label: 'Users' },
+          ] as const).map(({ to, label }) => {
+            const active = location.pathname === to || location.pathname.startsWith(to + '/')
+            return (
+              <Link
+                key={to}
+                to={to}
+                style={{
+                  display: 'block', padding: '6px 10px', fontSize: 12.5, fontWeight: 500,
+                  color: active ? 'hsl(var(--accent-foreground))' : 'hsl(var(--foreground))',
+                  background: active ? 'hsl(var(--accent))' : 'transparent',
+                  textDecoration: 'none', borderRadius: 'var(--radius)',
+                }}
+              >
+                {label}
+              </Link>
+            )
+          })}
         </div>
       )}
     </nav>
