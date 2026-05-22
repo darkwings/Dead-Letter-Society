@@ -1,0 +1,55 @@
+plugins {
+    id 'java'
+    id 'io.quarkus' version '3.33.1'
+}
+
+repositories {
+    mavenCentral()
+    maven { url 'https://packages.confluent.io/maven/' }
+}
+
+dependencies {
+    implementation platform("io.quarkus.platform:quarkus-bom:3.33.1")
+    implementation 'io.quarkus:quarkus-rest-jackson'
+    implementation 'io.quarkus:quarkus-hibernate-orm-panache'
+    implementation 'io.quarkus:quarkus-jdbc-postgresql'
+    implementation 'io.quarkus:quarkus-flyway'
+    implementation 'io.quarkus:quarkus-scheduler'
+    implementation 'io.quarkus:quarkus-security'
+    implementation 'io.quarkus:quarkus-elytron-security-jdbc'
+    implementation 'io.quarkus:quarkus-oidc'
+    implementation 'io.quarkus:quarkus-smallrye-jwt'
+    implementation 'io.quarkus:quarkus-smallrye-openapi'
+    implementation 'io.quarkus:quarkus-rest-client-jackson'
+    implementation 'io.quarkus:quarkus-messaging-kafka'
+    implementation('io.confluent:kafka-schema-registry-client:7.8.0') {
+        exclude group: 'org.apache.kafka', module: 'kafka-clients'
+    }
+    implementation('io.confluent:kafka-protobuf-serializer:7.8.0') {
+        exclude group: 'org.apache.kafka', module: 'kafka-clients'
+    }
+    implementation('io.confluent:kafka-json-schema-serializer:7.8.0') {
+        exclude group: 'org.apache.kafka', module: 'kafka-clients'
+    }
+    implementation 'org.apache.avro:avro:1.12.0'
+    implementation 'com.google.protobuf:protobuf-java:4.29.3'
+    implementation 'com.google.protobuf:protobuf-java-util:4.29.3'
+
+    testImplementation 'io.quarkus:quarkus-junit5'
+    testImplementation 'io.rest-assured:rest-assured'
+    testImplementation 'io.quarkus:quarkus-test-security'
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:kafka:1.21.3'
+    testImplementation 'org.testcontainers:postgresql:1.21.3'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.assertj:assertj-core:3.27.3'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+test {
+    systemProperty 'java.util.logging.manager', 'org.jboss.logmanager.LogManager'
+}

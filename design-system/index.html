@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Dead Letter Society — Design System</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="tokens.css" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #0f1014; }
+  body { font-family: 'Geist', -apple-system, system-ui, sans-serif; }
+  #root { height: 100vh; }
+  /* Override DC's warm-gray bg to a darker neutral so dark mockups don't fight the canvas */
+  body { background: #131418; }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="primitives.jsx"></script>
+<script type="text/babel" src="tokens-display.jsx"></script>
+<script type="text/babel" src="screens.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const root = ReactDOM.createRoot(document.getElementById('root'));
+
+/* Wraps any content in the .dls class so design tokens apply */
+const D = ({ children, style }) => (
+  <div className="dls" style={{ width: '100%', height: '100%', background: 'hsl(var(--background))', overflow: 'hidden', ...style }}>
+    {children}
+  </div>
+);
+
+function App() {
+  return (
+    <DesignCanvas title="Dead Letter Society" subtitle="Design system + key screens · v0.1 · May 17 2026" defaultZoom={0.62}>
+
+      {/* ─── BRAND ─── */}
+      <DCSection id="brand" title="Brand & Foundations" subtitle="Tokens, typography, surfaces — the basis of the system">
+
+        <DCArtboard id="brand-mark" label="Mark · Logo" width={360} height={240}>
+          <D style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 14 }}>
+            <Logo size={42} />
+            <div style={{ textAlign: 'center' }}>
+              <div className="t-h1" style={{ fontSize: 24 }}>Dead Letter Society</div>
+              <div className="t-small mono" style={{ marginTop: 4 }}>Kafka DLQ ops · self-hosted</div>
+            </div>
+            <div className="t-tiny mono" style={{ position: 'absolute', bottom: 12, color: 'hsl(var(--muted-foreground))' }}>
+              An envelope with a sealed mark. Indigo-violet on cool slate.
+            </div>
+          </D>
+        </DCArtboard>
+
+        <DCArtboard id="brand-type" label="Typography scale" width={480} height={560}>
+          <D style={{ overflow: 'auto' }}>
+            <TokenType />
+          </D>
+        </DCArtboard>
+
+        <DCArtboard id="brand-surface" label="Surface tokens" width={460} height={560}>
+          <D style={{ overflow: 'auto' }}>
+            <TokenSurfaces />
+          </D>
+        </DCArtboard>
+
+        <DCArtboard id="brand-status" label="Status color language" width={460} height={560}>
+          <D style={{ overflow: 'auto' }}>
+            <TokenStatuses />
+          </D>
+        </DCArtboard>
+
+        <DCArtboard id="brand-space" label="Spacing & radius" width={360} height={560}>
+          <D style={{ overflow: 'auto' }}>
+            <SpacingScale />
+          </D>
+        </DCArtboard>
+
+      </DCSection>
+
+      {/* ─── COMPONENTS ─── */}
+      <DCSection id="components" title="Component Library" subtitle="Buttons, inputs, badges, tables — the primitives used across every screen">
+
+        <DCArtboard id="c-buttons" label="Buttons" width={460} height={360}>
+          <D><ButtonsGallery /></D>
+        </DCArtboard>
+
+        <DCArtboard id="c-inputs" label="Inputs · select · date" width={420} height={580}>
+          <D style={{ overflow: 'auto' }}><InputsGallery /></D>
+        </DCArtboard>
+
+        <DCArtboard id="c-tables" label="Table · rows · selection" width={620} height={320}>
+          <D><TableGallery /></D>
+        </DCArtboard>
+
+        <DCArtboard id="c-card" label="Cards" width={360} height={320}>
+          <D><CardGallery /></D>
+        </DCArtboard>
+
+        <DCArtboard id="c-toast" label="Toasts" width={380} height={320}>
+          <D style={{ background: 'hsl(var(--background))' }}><ToastStack /></D>
+        </DCArtboard>
+
+        <DCArtboard id="c-modal" label="Modal / Dialog" width={420} height={300}>
+          <D><ModalDemo /></D>
+        </DCArtboard>
+
+        <DCArtboard id="c-json" label="JSON viewer + Kafka headers" width={460} height={560}>
+          <D style={{ overflow: 'auto' }}><JSONAndHeaders /></D>
+        </DCArtboard>
+
+        <DCArtboard id="c-notes" label="Note thread" width={400} height={420}>
+          <D style={{ overflow: 'auto' }}><NoteThread /></D>
+        </DCArtboard>
+
+        <DCArtboard id="c-stepper" label="Wizard stepper" width={460} height={120}>
+          <D><StepperDemo /></D>
+        </DCArtboard>
+
+        <DCArtboard id="c-fetch" label="Fetch status indicator" width={380} height={240}>
+          <D><FetchIndicator /></D>
+        </DCArtboard>
+
+        <DCArtboard id="c-empty" label="Empty state" width={380} height={300}>
+          <D><EmptyStateDemo /></D>
+        </DCArtboard>
+
+      </DCSection>
+
+      {/* ─── AUTH SCREENS ─── */}
+      <DCSection id="auth" title="Auth & First-Run" subtitle="Minimal centered chrome. Same shell, two contexts.">
+
+        <DCArtboard id="setup" label="First-run setup" width={800} height={560}>
+          <ScreenFirstRun />
+        </DCArtboard>
+
+        <DCArtboard id="login" label="Login" width={800} height={560}>
+          <ScreenLogin />
+        </DCArtboard>
+
+        <DCArtboard id="login-locked" label="Login · locked out" width={800} height={560}>
+          <ScreenLogin withError={true} />
+        </DCArtboard>
+
+      </DCSection>
+
+      {/* ─── APP SCREENS ─── */}
+      <DCSection id="app" title="App Screens" subtitle="Dense, dark-first operational UI. All screens at 1280×800 desktop.">
+
+        <DCArtboard id="dashboard" label="01 · Dashboard" width={1280} height={800}>
+          <ScreenDashboard />
+        </DCArtboard>
+
+        <DCArtboard id="list" label="02 · Message list" width={1280} height={800}>
+          <ScreenMessageList />
+        </DCArtboard>
+
+        <DCArtboard id="detail" label="03 · Message detail" width={1280} height={800}>
+          <ScreenMessageDetail />
+        </DCArtboard>
+
+        <DCArtboard id="wizard" label="04 · Replay wizard · Step 2 (with schema violation)" width={760} height={680}>
+          <ReplayWizard step={2} />
+        </DCArtboard>
+
+        <DCArtboard id="cluster" label="05 · Cluster configuration (Admin)" width={1280} height={800}>
+          <ScreenClusterConfig />
+        </DCArtboard>
+
+      </DCSection>
+
+      {/* ─── Notes for the eng team ─── */}
+      <DCPostIt top={120} left={2400} rotate={-1.5} width={220}>
+        Variables follow shadcn HSL triplet format — drop tokens.css into your Tailwind v4 setup, declare @theme inline.
+      </DCPostIt>
+
+    </DesignCanvas>
+  );
+}
+
+root.render(<App />);
+</script>
+</body>
+</html>

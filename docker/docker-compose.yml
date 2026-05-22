@@ -1,0 +1,42 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-dls}
+      POSTGRES_USER: ${DB_USER:-dls}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dls}"]
+      interval: 10s
+      retries: 5
+
+  backend:
+    image: dead-letter-society-backend:latest
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-dls}
+      DB_USER: ${DB_USER:-dls}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DLS_ENCRYPTION_KEY: ${DLS_ENCRYPTION_KEY:?DLS_ENCRYPTION_KEY required}
+      QUARKUS_OIDC_ENABLED: ${OIDC_ENABLED:-false}
+      QUARKUS_OIDC_AUTH_SERVER_URL: ${OIDC_SERVER_URL:-}
+      QUARKUS_OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: dead-letter-society-frontend:latest
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:

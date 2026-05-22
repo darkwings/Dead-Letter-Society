@@ -1,0 +1,15 @@
+package it.dls.infrastructure.api.cluster;
+
+import it.dls.domain.cluster.KafkaSecurityProtocol;
+
+public record CreateClusterRequest(
+    String name,
+    String bootstrapServers,
+    KafkaSecurityProtocol securityProtocol,
+    String username,
+    String password,
+    String keystorePem,
+    String srUrl,
+    String srUsername,
+    String srPassword
+) {}

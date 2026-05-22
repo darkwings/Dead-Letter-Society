@@ -1,0 +1,65 @@
+package it.dls.infrastructure.api.message;
+
+import it.dls.application.inspection.InspectMessagesUseCase;
+import it.dls.domain.message.MessageFilter;
+import it.dls.domain.message.MessageStatus;
+import it.dls.domain.message.Pageable;
+import it.dls.infrastructure.api.auth.ErrorResponse;
+import jakarta.annotation.security.RolesAllowed;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.jwt.JsonWebToken;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Path("/api/dlq-configs/{configId}/messages")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
+@RolesAllowed({"ADMIN", "USER"})
+public class DlqConfigMessagesResource {
+
+    @Inject InspectMessagesUseCase inspectMessages;
+    @Inject JsonWebToken jwt;
+
+    @GET
+    public Response listMessages(
+            @PathParam("configId") UUID configId,
+            @QueryParam("status") String statusParam,
+            @QueryParam("from") String fromParam,
+            @QueryParam("to") String toParam,
+            @QueryParam("partition") Integer partition,
+            @QueryParam("offsetFrom") Long offsetFrom,
+            @QueryParam("offsetTo") Long offsetTo,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        try {
+            MessageStatus status = statusParam != null ? MessageStatus.valueOf(statusParam) : null;
+            Instant from = fromParam != null ? Instant.parse(fromParam) : null;
+            Instant to = toParam != null ? Instant.parse(toParam) : null;
+            var filter = new MessageFilter(status, from, to, partition, offsetFrom, offsetTo);
+            var result = inspectMessages.listMessages(
+                configId, filter, new Pageable(page, size), currentUserId(), isAdmin());
+            return Response.ok(MessagePageResponse.from(result)).build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.NOT_FOUND)
+                .entity(new ErrorResponse("NOT_FOUND", e.getMessage())).build();
+        } catch (SecurityException e) {
+            return Response.status(Response.Status.FORBIDDEN)
+                .entity(new ErrorResponse("FORBIDDEN", e.getMessage())).build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                .entity(new ErrorResponse("BAD_REQUEST", e.getMessage())).build();
+        }
+    }
+
+    private UUID currentUserId() {
+        return UUID.fromString(jwt.getSubject());
+    }
+
+    private boolean isAdmin() {
+        return jwt.getGroups().contains("ADMIN");
+    }
+}
