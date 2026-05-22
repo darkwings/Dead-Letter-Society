@@ -79,6 +79,13 @@ public class DlqConfigRepositoryAdapter implements DlqConfigRepository {
 
     @Override
     @Transactional(Transactional.TxType.SUPPORTS)
+    public List<DlqConfig> findAll() {
+        return DlqConfigEntity.<DlqConfigEntity>listAll()
+            .stream().map(DlqConfigEntity::toDomain).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(Transactional.TxType.SUPPORTS)
     public List<DlqConfig> findByClusterId(UUID clusterId) {
         return DlqConfigEntity.<DlqConfigEntity>find("clusterId", clusterId)
             .stream().map(DlqConfigEntity::toDomain).collect(Collectors.toList());

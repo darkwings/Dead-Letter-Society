@@ -1,7 +1,7 @@
 ALTER TABLE dlq_configs
-    ADD COLUMN default_replay_topic VARCHAR(500);
+    ADD COLUMN IF NOT EXISTS default_replay_topic VARCHAR(500);
 
-CREATE TABLE replay_audit_records (
+CREATE TABLE IF NOT EXISTS replay_audit_records (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     message_id      UUID NOT NULL REFERENCES dlq_messages(id) ON DELETE CASCADE,
     replayed_by     UUID NOT NULL REFERENCES users(id),
@@ -12,4 +12,4 @@ CREATE TABLE replay_audit_records (
     attempt_count   INT NOT NULL DEFAULT 1
 );
 
-CREATE INDEX idx_replay_audit_message ON replay_audit_records(message_id);
+CREATE INDEX IF NOT EXISTS idx_replay_audit_message ON replay_audit_records(message_id);
