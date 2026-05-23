@@ -70,8 +70,8 @@ class ClusterResourceIT {
             .post("/api/clusters")
             .then()
             .statusCode(422)
-            .body("code", is("CONNECTIVITY_ERROR"))
-            .body("message", containsString("Kafka"));
+            .body("title", is("Unprocessable Entity"))
+            .body("detail", containsString("Kafka"));
     }
 
     @Test
@@ -89,7 +89,7 @@ class ClusterResourceIT {
             .post("/api/clusters")
             .then()
             .statusCode(400)
-            .body("code", is("INVALID_REQUEST"));
+            .body("title", is("Bad Request"));
     }
 
     @Test

@@ -3,7 +3,7 @@ package it.dls.infrastructure.api.replay;
 import it.dls.application.replay.ReplayMessageUseCase;
 import it.dls.application.replay.ReplayTopicNotResolvableException;
 import it.dls.application.replay.SchemaValidationException;
-import it.dls.infrastructure.api.auth.ErrorResponse;
+import it.dls.infrastructure.api.ProblemDetail;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -33,14 +33,11 @@ public class ReplayResource {
                 ? Response.ok(result).build()
                 : Response.status(422).entity(result).build();
         } catch (ReplayTopicNotResolvableException e) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse("TOPIC_NOT_RESOLVABLE", e.getMessage())).build();
+            return ProblemDetail.badRequest(e.getMessage()).toResponse();
         } catch (SchemaValidationException e) {
-            return Response.status(422)
-                .entity(new ErrorResponse("SCHEMA_VALIDATION_FAILED", e.getMessage())).build();
+            return ProblemDetail.unprocessable(e.getMessage()).toResponse();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity(new ErrorResponse("NOT_FOUND", e.getMessage())).build();
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
         }
     }
 
@@ -48,15 +45,13 @@ public class ReplayResource {
     @Path("/validate-payload")
     public Response validatePayload(@PathParam("id") UUID messageId, ValidatePayloadRequest req) {
         if (req == null || req.payload() == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse("INVALID_REQUEST", "payload is required")).build();
+            return ProblemDetail.badRequest("payload is required").toResponse();
         }
         try {
             var result = replayUseCase.validatePayload(messageId, req.payload());
             return Response.ok(new ValidatePayloadResponse(result.valid(), result.error())).build();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity(new ErrorResponse("NOT_FOUND", e.getMessage())).build();
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
         }
     }
 

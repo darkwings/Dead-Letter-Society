@@ -2,6 +2,7 @@ package it.dls.application.cluster;
 
 import it.dls.domain.cluster.KafkaClusterRepository;
 import it.dls.domain.dlqconfig.*;
+import java.util.Optional;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -44,6 +45,30 @@ public class ManageDlqConfigUseCase {
     @Transactional(Transactional.TxType.SUPPORTS)
     public List<DlqConfig> listByCluster(UUID clusterId) {
         return dlqConfigRepo.findByClusterId(clusterId);
+    }
+
+    @Transactional(Transactional.TxType.SUPPORTS)
+    public Optional<DlqConfig> findById(UUID id) {
+        return dlqConfigRepo.findById(id);
+    }
+
+    @Transactional
+    public DlqConfig updateDlqConfig(UUID id, UpdateDlqConfigCommand cmd) {
+        var config = dlqConfigRepo.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("DlqConfig not found: " + id));
+        FetchConfig fetchConfig = switch (cmd.downloadMode()) {
+            case SCHEDULED -> FetchConfig.scheduled(cmd.cronExpression(), cmd.batchSize());
+            case ON_DEMAND -> FetchConfig.onDemand(cmd.batchSize());
+            case BOTH -> FetchConfig.both(cmd.cronExpression(), cmd.batchSize());
+        };
+        RetentionPolicy retentionPolicy = switch (cmd.retentionType()) {
+            case MAX_AGE_DAYS -> RetentionPolicy.maxDays(cmd.retentionValue());
+            case MAX_COUNT -> RetentionPolicy.maxCount(cmd.retentionValue());
+        };
+        config.update(cmd.displayName(), fetchConfig, retentionPolicy,
+            cmd.schemaRegistryId(), cmd.defaultReplayTopic());
+        dlqConfigRepo.save(config);
+        return config;
     }
 
     @Transactional

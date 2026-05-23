@@ -1,7 +1,7 @@
 package it.dls.infrastructure.api.message;
 
 import it.dls.application.inspection.AddNoteUseCase;
-import it.dls.infrastructure.api.auth.ErrorResponse;
+import it.dls.infrastructure.api.ProblemDetail;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -30,16 +30,14 @@ public class NoteResource {
                 .toList();
             return Response.ok(notes).build();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity(new ErrorResponse("NOT_FOUND", e.getMessage())).build();
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
         }
     }
 
     @POST
     public Response add(@PathParam("messageId") UUID messageId, CreateNoteRequest req) {
         if (req == null || req.content() == null || req.content().isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse("INVALID_REQUEST", "content is required")).build();
+            return ProblemDetail.badRequest("content is required").toResponse();
         }
         try {
             var note = addNote.addNote(messageId, req.content(), req.ticketReference(), currentUserId());
@@ -47,8 +45,7 @@ public class NoteResource {
                 .entity(NoteResponse.from(note))
                 .build();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity(new ErrorResponse("NOT_FOUND", e.getMessage())).build();
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
         }
     }
 

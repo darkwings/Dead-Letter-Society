@@ -1,7 +1,7 @@
 package it.dls.infrastructure.api.cluster;
 
 import it.dls.application.cluster.*;
-import it.dls.infrastructure.api.auth.ErrorResponse;
+import it.dls.infrastructure.api.ProblemDetail;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -10,6 +10,7 @@ import jakarta.ws.rs.core.Response;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Path("/api/clusters")
@@ -34,9 +35,7 @@ public class ClusterResource {
         if (req == null || req.name() == null || req.name().isBlank()
                 || req.bootstrapServers() == null || req.bootstrapServers().isBlank()
                 || req.securityProtocol() == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse("INVALID_REQUEST", "name, bootstrapServers, securityProtocol are required"))
-                .build();
+            return ProblemDetail.badRequest("name, bootstrapServers, securityProtocol are required").toResponse();
         }
         try {
             var cmd = new RegisterClusterCommand(
@@ -49,13 +48,9 @@ public class ClusterResource {
                 .entity(ClusterResponse.from(cluster))
                 .build();
         } catch (ConnectivityValidationException e) {
-            return Response.status(422)
-                .entity(new ErrorResponse("CONNECTIVITY_ERROR", e.getMessage()))
-                .build();
+            return ProblemDetail.unprocessable(e.getMessage()).toResponse();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse("INVALID_REQUEST", e.getMessage()))
-                .build();
+            return ProblemDetail.badRequest(e.getMessage()).toResponse();
         }
     }
 
@@ -66,9 +61,20 @@ public class ClusterResource {
             manageCluster.deleteCluster(id);
             return Response.noContent().build();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity(new ErrorResponse("NOT_FOUND", e.getMessage()))
-                .build();
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
+        }
+    }
+
+    @GET
+    @Path("/{id}/topics")
+    public Response listTopics(@PathParam("id") UUID id) {
+        try {
+            var topics = manageCluster.listTopics(id);
+            return Response.ok(Map.of("topics", topics)).build();
+        } catch (IllegalArgumentException e) {
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
+        } catch (RuntimeException e) {
+            return ProblemDetail.unprocessable(e.getMessage()).toResponse();
         }
     }
 
@@ -84,9 +90,7 @@ public class ClusterResource {
         if (req == null || req.topicName() == null || req.topicName().isBlank()
                 || req.displayName() == null || req.displayName().isBlank()
                 || req.downloadMode() == null || req.retentionType() == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse("INVALID_REQUEST", "topicName, displayName, downloadMode, retentionType are required"))
-                .build();
+            return ProblemDetail.badRequest("topicName, displayName, downloadMode, retentionType are required").toResponse();
         }
         try {
             var cmd = new CreateDlqConfigCommand(
@@ -99,9 +103,28 @@ public class ClusterResource {
                 .entity(DlqConfigResponse.from(config))
                 .build();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse("INVALID_REQUEST", e.getMessage()))
-                .build();
+            return ProblemDetail.badRequest(e.getMessage()).toResponse();
+        }
+    }
+
+    @PUT
+    @Path("/{clusterId}/dlq-configs/{configId}")
+    public Response updateDlqConfig(@PathParam("clusterId") UUID clusterId,
+                                    @PathParam("configId") UUID configId,
+                                    UpdateDlqConfigRequest req) {
+        if (req == null || req.displayName() == null || req.displayName().isBlank()
+                || req.downloadMode() == null || req.retentionType() == null) {
+            return ProblemDetail.badRequest("displayName, downloadMode, retentionType are required").toResponse();
+        }
+        try {
+            var cmd = new UpdateDlqConfigCommand(
+                req.displayName(), req.downloadMode(), req.cronExpression(), req.batchSize(),
+                req.retentionType(), req.retentionValue(), req.schemaRegistryId(), req.defaultReplayTopic()
+            );
+            var config = manageDlqConfig.updateDlqConfig(configId, cmd);
+            return Response.ok(DlqConfigResponse.from(config)).build();
+        } catch (IllegalArgumentException e) {
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
         }
     }
 }

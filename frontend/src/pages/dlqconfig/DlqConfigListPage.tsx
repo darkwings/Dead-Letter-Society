@@ -57,12 +57,20 @@ export default function DlqConfigListPage() {
                     {c.retentionValue} {c.retentionType === 'MAX_AGE_DAYS' ? 'days' : 'messages'}
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <Link
-                      to={`/dlq-configs/${c.id}/messages`}
-                      className="btn btn-secondary btn-sm"
-                    >
-                      View Messages
-                    </Link>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <Link
+                        to={`/clusters/${clusterId}/dlq-configs/${c.id}/edit`}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Edit
+                      </Link>
+                      <Link
+                        to={`/dlq-configs/${c.id}/messages`}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        View Messages
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

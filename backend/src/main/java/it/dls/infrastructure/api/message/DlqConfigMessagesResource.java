@@ -4,7 +4,7 @@ import it.dls.application.inspection.InspectMessagesUseCase;
 import it.dls.domain.message.MessageFilter;
 import it.dls.domain.message.MessageStatus;
 import it.dls.domain.message.Pageable;
-import it.dls.infrastructure.api.auth.ErrorResponse;
+import it.dls.infrastructure.api.ProblemDetail;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -44,14 +44,11 @@ public class DlqConfigMessagesResource {
                 configId, filter, new Pageable(page, size), currentUserId(), isAdmin());
             return Response.ok(MessagePageResponse.from(result)).build();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity(new ErrorResponse("NOT_FOUND", e.getMessage())).build();
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
         } catch (SecurityException e) {
-            return Response.status(Response.Status.FORBIDDEN)
-                .entity(new ErrorResponse("FORBIDDEN", e.getMessage())).build();
+            return ProblemDetail.forbidden(e.getMessage()).toResponse();
         } catch (Exception e) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse("BAD_REQUEST", e.getMessage())).build();
+            return ProblemDetail.badRequest(e.getMessage()).toResponse();
         }
     }
 

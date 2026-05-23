@@ -3,7 +3,7 @@ package it.dls.infrastructure.api.cluster;
 import it.dls.application.cluster.ManageDlqConfigUseCase;
 import it.dls.application.fetch.FetchAlreadyInProgressException;
 import it.dls.application.fetch.FetchMessagesUseCase;
-import it.dls.infrastructure.api.auth.ErrorResponse;
+import it.dls.infrastructure.api.ProblemDetail;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -17,50 +17,48 @@ import java.util.UUID;
 @Path("/api/dlq-configs")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
-@RolesAllowed("ADMIN")
+@RolesAllowed({"ADMIN", "USER"})
 public class DlqConfigResource {
 
     @Inject ManageDlqConfigUseCase manageDlqConfig;
     @Inject FetchMessagesUseCase fetchMessages;
     @Inject JsonWebToken jwt;
 
+    @GET
+    @Path("/{id}")
+    public Response getById(@PathParam("id") UUID id) {
+        return manageDlqConfig.findById(id)
+            .map(c -> Response.ok(DlqConfigResponse.from(c)).build())
+            .orElseGet(() -> ProblemDetail.notFound("DlqConfig not found: " + id).toResponse());
+    }
+
     @POST
     @Path("/{id}/fetch")
-    @RolesAllowed({"ADMIN", "USER"})
     public Response fetchNow(@PathParam("id") UUID id) {
         try {
             var result = fetchMessages.fetchOnDemand(id, UUID.fromString(jwt.getSubject()));
             return Response.ok(Map.of("fetched", result.count())).build();
         } catch (FetchAlreadyInProgressException e) {
-            return Response.status(Response.Status.CONFLICT)
-                .entity(new ErrorResponse("FETCH_IN_PROGRESS", "A fetch is already in progress for this config"))
-                .build();
+            return ProblemDetail.conflict("A fetch is already in progress for this config").toResponse();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity(new ErrorResponse("NOT_FOUND", e.getMessage()))
-                .build();
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
         } catch (Exception e) {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(new ErrorResponse("FETCH_ERROR", e.getMessage()))
-                .build();
+            return ProblemDetail.internalError(e.getMessage()).toResponse();
         }
     }
 
     @PUT
     @Path("/{id}/users")
+    @RolesAllowed("ADMIN")
     public Response assignUser(@PathParam("id") UUID id, AssignUserRequest req) {
         if (req == null || req.userId() == null || req.role() == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse("INVALID_REQUEST", "userId and role are required"))
-                .build();
+            return ProblemDetail.badRequest("userId and role are required").toResponse();
         }
         try {
             manageDlqConfig.assignUser(id, req.userId(), req.role());
             return Response.noContent().build();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity(new ErrorResponse("NOT_FOUND", e.getMessage()))
-                .build();
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
         }
     }
 }

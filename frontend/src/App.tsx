@@ -6,6 +6,7 @@ import ClusterListPage from '@/pages/clusters/ClusterListPage'
 import CreateClusterPage from '@/pages/clusters/CreateClusterPage'
 import DlqConfigListPage from '@/pages/dlqconfig/DlqConfigListPage'
 import CreateDlqConfigPage from '@/pages/dlqconfig/CreateDlqConfigPage'
+import EditDlqConfigPage from '@/pages/dlqconfig/EditDlqConfigPage'
 import MessageListPage from '@/pages/messages/MessageListPage'
 import MessageDetailPage from '@/pages/messages/MessageDetailPage'
 import UsersPage from '@/pages/admin/UsersPage'
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="/clusters/new" element={<CreateClusterPage />} />
             <Route path="/clusters/:clusterId/dlq-configs" element={<DlqConfigListPage />} />
             <Route path="/clusters/:clusterId/dlq-configs/new" element={<CreateDlqConfigPage />} />
+            <Route path="/clusters/:clusterId/dlq-configs/:configId/edit" element={<EditDlqConfigPage />} />
             <Route path="/dlq-configs/:configId/messages" element={<MessageListPage />} />
             <Route path="/messages/:messageId" element={<MessageDetailPage />} />
             <Route path="/admin/users" element={<UsersPage />} />

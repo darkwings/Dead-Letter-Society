@@ -19,6 +19,7 @@ public record DlqConfigResponse(
     RetentionPolicy.RetentionType retentionType,
     int retentionValue,
     UUID schemaRegistryId,
+    String defaultReplayTopic,
     List<UserAssignmentResponse> userAssignments
 ) {
     public record UserAssignmentResponse(UUID userId, DlqRole role) {}
@@ -35,6 +36,7 @@ public record DlqConfigResponse(
             c.getRetentionPolicy().type(),
             c.getRetentionPolicy().value(),
             c.getSchemaRegistryId(),
+            c.getDefaultReplayTopic(),
             c.getUserAssignments().stream()
                 .map(a -> new UserAssignmentResponse(a.userId(), a.role()))
                 .toList()

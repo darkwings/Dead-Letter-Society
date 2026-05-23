@@ -1,10 +1,11 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
+import TopicCombobox from '@/components/TopicCombobox'
 
 const schema = z.object({
   topicName: z.string().min(1, 'Topic name required'),
@@ -22,7 +23,7 @@ export default function CreateDlqConfigPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, watch, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       downloadMode: 'ON_DEMAND',
@@ -46,8 +47,8 @@ export default function CreateDlqConfigPage() {
       navigate(`/clusters/${clusterId}/dlq-configs`)
     },
     onError: (e: unknown) => {
-      const err = e as { body?: { message?: string }; message?: string }
-      toast.error(err.body?.message ?? err.message ?? 'Failed to create DLQ config')
+      const err = e as { message?: string }
+      toast.error(err.message ?? 'Failed to create DLQ config')
     },
   })
 
@@ -58,12 +59,18 @@ export default function CreateDlqConfigPage() {
       <div className="card" style={{ padding: 24 }}>
         <form onSubmit={handleSubmit((d) => mutation.mutate(d))} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label htmlFor="topicName" style={{ fontSize: 12, fontWeight: 500 }}>Topic Name</label>
-            <input
-              id="topicName"
-              className={`input${errors.topicName ? ' error' : ''}`}
-              placeholder="my-service.dlq"
-              {...register('topicName')}
+            <label style={{ fontSize: 12, fontWeight: 500 }}>Topic Name</label>
+            <Controller
+              name="topicName"
+              control={control}
+              render={({ field }) => (
+                <TopicCombobox
+                  clusterId={clusterId!}
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  error={errors.topicName?.message}
+                />
+              )}
             />
             {errors.topicName && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.topicName.message}</span>}
           </div>
