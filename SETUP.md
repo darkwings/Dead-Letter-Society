@@ -8,6 +8,115 @@
 
 ---
 
+## Local Development
+
+### 1. Start infrastructure
+
+Redpanda (Kafka-compatible broker + Schema Registry) and PostgreSQL run in Docker. No credentials needed — dev profile uses hardcoded defaults.
+
+```bash
+docker compose -f docker/docker-compose.dev.yml up -d
+```
+
+### 2. Start the backend
+
+```bash
+cd backend
+./gradlew quarkusDev -Dquarkus.devservices.enabled=false
+```
+
+Backend starts on `http://localhost:8080`. Hot reload is active — changes recompile on the next request.
+
+### 3. Start the frontend
+
+```bash
+cd frontend
+npm install   # first time only
+npm run dev
+```
+
+Frontend starts on `http://localhost:5173` with Vite proxy forwarding `/api/*` to the backend.
+
+### 4. First-run setup
+
+Navigate to `http://localhost:5173/setup` to create the initial admin account.
+
+### Running backend tests
+
+Tests use Quarkus Dev Services (Testcontainers) — no running Docker stack needed:
+
+```bash
+cd backend && ./gradlew test
+```
+
+### Running E2E tests
+
+Requires the frontend dev server running on port 5173:
+
+```bash
+cd frontend && npx playwright test
+```
+
+---
+
+## Producing Test Messages to a DLQ
+
+Redpanda ships with `rpk` (Redpanda CLI). Use it to create a topic and publish messages that DLS will ingest.
+
+### Create a DLQ topic
+
+```bash
+docker compose -f docker/docker-compose.dev.yml exec redpanda \
+  rpk topic create my-service.DLQ --partitions 1
+```
+
+### Produce a plain JSON message
+
+```bash
+docker compose -f docker/docker-compose.dev.yml exec redpanda \
+  rpk topic produce my-service.DLQ --key order-123 <<'EOF'
+{"orderId":"order-123","status":"FAILED","reason":"payment_timeout"}
+EOF
+```
+
+### Produce multiple messages from a file
+
+Create `messages.txt` with one JSON payload per line, then:
+
+```bash
+docker compose -f docker/docker-compose.dev.yml exec -T redpanda \
+  rpk topic produce my-service.DLQ < messages.txt
+```
+
+### Produce with custom headers
+
+```bash
+docker compose -f docker/docker-compose.dev.yml exec redpanda \
+  rpk topic produce my-service.DLQ \
+  --header x-original-topic=my-service.events \
+  --header x-correlation-id=abc-123 \
+  --key order-123 <<'EOF'
+{"orderId":"order-123","status":"FAILED"}
+EOF
+```
+
+> **Tip:** The `x-original-topic` header is used by the Replay Wizard as the default replay target topic.
+
+### Verify messages landed
+
+```bash
+docker compose -f docker/docker-compose.dev.yml exec redpanda \
+  rpk topic consume my-service.DLQ --offset start --num 10
+```
+
+### Ingest into DLS
+
+1. In DLS, create a cluster pointing to `localhost:9092` (PLAINTEXT).
+2. Add a DLQ Config for the topic `my-service.DLQ`.
+3. Click **Fetch now** on the messages page to pull the messages in.
+
+---
+
 ## Standalone Mode (no SSO)
 
 Users are managed entirely within the application. The first user to reach the setup screen becomes the admin.
