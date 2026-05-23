@@ -44,7 +44,8 @@ Download dei messaggi dalle DLQ Kafka verso il DB dell'applicazione. Gestione of
 Ispezione, filtraggio e annotazione dei messaggi scaricati.
 
 **Contiene:**
-- Lista e dettaglio `DlqMessage`
+- Lista e dettaglio `DlqMessage` per-DLQ Config
+- **All Messages view** — lista cross-DLQ filtrata per solo status (accessibile a tutti gli utenti autenticati)
 - Filtri (stato, timestamp, partition, offset range)
 - `NoteThread` — thread di commenti per messaggio
 - Ticket Reference (riferimento manuale a sistema esterno)
@@ -54,12 +55,22 @@ Ispezione, filtraggio e annotazione dei messaggi scaricati.
 Reimmissione guidata di un messaggio sul topic originale, con validazione schema opzionale ed editing payload.
 
 **Contiene:**
-- Replay wizard (multi-step, conferma UI)
-- Editing payload decodificato con validazione schema (solo OPERATOR)
+- Replay wizard (multi-step, conferma UI) — per singolo messaggio
+- **Bulk Replay** — replay semplificato di N messaggi selezionati verso il Default Replay Topic della DLQ Config, senza editing payload né wizard
+- Editing payload decodificato con validazione schema (solo OPERATOR, singolo messaggio)
 - Risoluzione topic target (header → override esplicito)
 - Pubblicazione su Kafka con aggiunta header di tracciamento
-- `ReplayAuditRecord`
+- `ReplayAuditRecord` — immutabile, include `replayedBy` (userId)
 - Transizioni di stato messaggio
+
+### 6. Dashboard & Analytics *(ADMIN only)*
+Pannello operativo con metriche aggregate sull'intero sistema.
+
+**Contiene:**
+- **Summary Cards** — conteggi messaggi per status (NEW, UNDER_REVIEW, REPLAYED, DISCARDED, REPLAY_FAILED) su tutte le DLQ Config
+- **Replay Rate Sparkline** — percentuale messaggi replayed su totale, granularità giornaliera, finestra 7 giorni
+- **DLQ Status Table** — per ogni DLQ Config: conteggio NEW, timestamp ultimo fetch, link alla message list
+- Accessibile esclusivamente agli ADMIN; altri ruoli vedono la cluster list come home
 
 ---
 
@@ -251,11 +262,12 @@ NEW → UNDER_REVIEW → REPLAYED
 
 ### Porte Inbound (Driving)
 - `FetchMessagesUseCase` — avvia fetch (schedulato/on-demand)
-- `ReplayMessageUseCase` — wizard replay
-- `InspectMessagesUseCase` — lista, filtri, dettaglio
+- `ReplayMessageUseCase` — wizard replay (singolo) + bulk replay
+- `InspectMessagesUseCase` — lista per-DLQ, cross-DLQ (All Messages), filtri, dettaglio
 - `ManageClusterUseCase` — CRUD cluster + DLQ config
 - `ManageUsersUseCase` — CRUD utenti, assegnazione ruoli
 - `AddNoteUseCase` — aggiunta nota a messaggio
+- `DashboardUseCase` *(admin only)* — summary cards, replay rate sparkline
 
 ### Porte Outbound (Driven)
 - `KafkaConsumerPort` — fetch messaggi da topic Kafka

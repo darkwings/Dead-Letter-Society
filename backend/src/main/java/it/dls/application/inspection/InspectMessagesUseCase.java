@@ -8,6 +8,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -22,6 +23,24 @@ public class InspectMessagesUseCase {
                                     UUID requestingUserId, boolean isAdmin) {
         if (!isAdmin) assertReadAccess(dlqConfigId, requestingUserId);
         return messageRepo.findByConfig(dlqConfigId, filter, pageable);
+    }
+
+    @Transactional(Transactional.TxType.SUPPORTS)
+    public MessagePage listAllMessages(MessageStatus statusFilter, Pageable pageable,
+                                       UUID requestingUserId, boolean isAdmin) {
+        List<UUID> accessibleIds;
+        if (isAdmin) {
+            accessibleIds = configRepo.findAll().stream()
+                .map(c -> c.getId())
+                .toList();
+        } else {
+            accessibleIds = configRepo.findAll().stream()
+                .filter(c -> c.getUserAssignments().stream()
+                    .anyMatch(a -> a.userId().equals(requestingUserId)))
+                .map(c -> c.getId())
+                .toList();
+        }
+        return messageRepo.findAll(statusFilter, pageable, accessibleIds);
     }
 
     @Transactional(Transactional.TxType.SUPPORTS)

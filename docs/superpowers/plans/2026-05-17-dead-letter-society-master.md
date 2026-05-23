@@ -2747,6 +2747,568 @@ git commit -am "docs: SETUP.md — standalone, Keycloak, Okta, encryption key, K
 
 ---
 
+## Phase 8 — UI Fidelity (Design System Compliance)
+
+**Goal:** Close the gap between the design system specification (`design-system/screens.jsx`, `DESIGN-PROMPT.md`) and the current implementation. Delivers: Dashboard (admin home), sidebar badge counts, message list side filter + payload preview + bulk replay, all-messages cross-DLQ view, settings page, message detail 4-col grid, replay wizard stepper.
+
+**EVALUATION.md coverage:** DASH-001..010, BULK-001..007, ALLMSG-001..005, SIDEBAR-001..004, SETTINGS-001..004, MSG-007, MSG-008, MSG-003 (update).
+
+---
+
+### Task 8.1 — Dashboard backend
+
+**Files:**
+- `backend/src/main/java/it/dls/application/dashboard/DashboardSummary.java` (record)
+- `backend/src/main/java/it/dls/application/dashboard/SparklinePoint.java` (record)
+- `backend/src/main/java/it/dls/application/dashboard/DashboardUseCase.java`
+- `backend/src/main/java/it/dls/infrastructure/api/DashboardResource.java`
+- `backend/src/test/java/it/dls/application/dashboard/DashboardUseCaseTest.java`
+- `backend/src/test/java/it/dls/infrastructure/api/DashboardResourceIT.java`
+
+**Steps:**
+
+- [ ] **Step 1: Domain records**
+
+```java
+// DashboardSummary.java
+public record DashboardSummary(
+    long newCount, long underReviewCount, long replayedCount,
+    long discardedCount, long replayFailedCount, Instant computedAt
+) {}
+
+// SparklinePoint.java
+public record SparklinePoint(LocalDate date, long replayed, long total) {
+    public double replayRate() {
+        return total == 0 ? 0.0 : (double) replayed / total;
+    }
+}
+```
+
+- [ ] **Step 2: `DashboardUseCase`**
+
+```java
+@ApplicationScoped
+public class DashboardUseCase {
+
+    @Inject MessageRepository messageRepo;
+
+    @Transactional(TxType.SUPPORTS)
+    public DashboardSummary getSummary() {
+        return new DashboardSummary(
+            messageRepo.countByStatus(MessageStatus.NEW),
+            messageRepo.countByStatus(MessageStatus.UNDER_REVIEW),
+            messageRepo.countByStatus(MessageStatus.REPLAYED),
+            messageRepo.countByStatus(MessageStatus.DISCARDED),
+            messageRepo.countByStatus(MessageStatus.REPLAY_FAILED),
+            Instant.now()
+        );
+    }
+
+    @Transactional(TxType.SUPPORTS)
+    public List<SparklinePoint> getSparkline(int days) {
+        // query replay_audit_records grouped by day for last N days
+        // total = messages ingested that day (ingestedAt date)
+        // replayed = replay_audit_records where success = true, grouped by day
+        return messageRepo.getSparklineData(days);
+    }
+}
+```
+
+Extend `MessageRepository` port:
+```java
+long countByStatus(MessageStatus status);
+List<SparklinePoint> getSparklineData(int days);
+```
+
+Implement in `MessagePanacheRepository`.
+
+- [ ] **Step 3: `DashboardResource`**
+
+```java
+@Path("/api/dashboard")
+@RolesAllowed("ADMIN")
+@Produces(MediaType.APPLICATION_JSON)
+public class DashboardResource {
+
+    @Inject DashboardUseCase dashboard;
+
+    @GET @Path("/summary")
+    public Response getSummary() {
+        return Response.ok(dashboard.getSummary()).build();
+    }
+
+    @GET @Path("/sparkline")
+    public Response getSparkline(@QueryParam("days") @DefaultValue("7") int days) {
+        return Response.ok(dashboard.getSparkline(days)).build();
+    }
+}
+```
+
+- [ ] **Step 4: Unit tests — `DashboardUseCaseTest`**
+
+  - `getSummary_returnsCorrectCounts` — mock repo, verify each status count
+  - `getSparkline_returns7Points` — mock repo returning 7 points, verify replay rate
+  - `getSparkline_totalZero_rateIsZero` — edge case
+
+- [ ] **Step 5: Integration test — `DashboardResourceIT`**
+
+  - `getSummary_adminOnly_returns200`
+  - `getSummary_nonAdmin_returns403`
+  - `getSparkline_adminOnly_returns7Points`
+
+- [ ] **Step 6: Commit**
+
+```bash
+git commit -am "feat: dashboard backend — summary + sparkline endpoints (admin only)"
+```
+
+---
+
+### Task 8.2 — Dashboard frontend
+
+**Files:**
+- `frontend/src/pages/dashboard/DashboardPage.tsx`
+- `frontend/src/pages/dashboard/SummaryCard.tsx`
+- `frontend/src/pages/dashboard/SparklineChart.tsx`
+- `frontend/src/pages/dashboard/DlqStatusTable.tsx`
+- `frontend/src/App.tsx` (update home route)
+- `frontend/src/components/RouteGuard.tsx` (admin home redirect)
+
+**Steps:**
+
+- [ ] **Step 1: Admin home redirect**
+
+Update `RouteGuard` or root route: if `user.globalRole === 'ADMIN'` render `<DashboardPage />`, else render `<ClusterListPage />`. Route `/` should serve both.
+
+- [ ] **Step 2: `DashboardPage.tsx`**
+
+  - Fetch `GET /api/dashboard/summary` with TanStack Query
+  - Show loading skeleton (5 card-shaped grey rectangles) while loading
+  - On load: render `<SummaryCard>` × 5, `<SparklineChart>`, `<DlqStatusTable>`, caption `Last updated: {computedAt}`
+
+- [ ] **Step 3: `SummaryCard.tsx`**
+
+  Five cards with status color tokens from `design-system/tokens.css`:
+  - NEW → `--status-new`
+  - UNDER_REVIEW → `--status-under-review`
+  - REPLAYED → `--status-replayed`
+  - DISCARDED → `--status-discarded`
+  - REPLAY_FAILED → `--status-replay-failed`
+
+- [ ] **Step 4: `SparklineChart.tsx`**
+
+  Use `recharts` (`AreaChart`). Install if not present: `npm install recharts`.
+  Fetch `GET /api/dashboard/sparkline?days=7`. Plot `replayRate` (y-axis 0–100%) × `date` (x-axis, last 7 days).
+
+- [ ] **Step 5: `DlqStatusTable.tsx`**
+
+  Fetch DLQ configs list (`GET /api/clusters`) + per-cluster DLQ configs. Display table: Display Name, Cluster, NEW count (from summary endpoint or separate query), last fetch timestamp. DLQ configs with 0 messages still appear.
+
+- [ ] **Step 6: Playwright E2E — `e2e/dashboard/dashboard-home.spec.ts`**
+
+  - Admin login → navigates to `/` → sees Dashboard (DASH-001)
+  - Operator login → navigates to `/` → sees Cluster list (DASH-002)
+
+- [ ] **Step 7: Playwright E2E — `e2e/dashboard/dashboard-content.spec.ts`**
+
+  Mock `/api/dashboard/summary` and `/api/dashboard/sparkline`. Assert: 5 status cards visible, sparkline chart rendered, `computedAt` caption present (DASH-003..DASH-007).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git commit -am "feat: dashboard page — summary cards, sparkline, DLQ status table (admin home)"
+```
+
+---
+
+### Task 8.3 — Sidebar global nav + badge counts
+
+**Files:**
+- `frontend/src/components/AppShell.tsx` (sidebar update)
+- `frontend/src/hooks/useDlqNewCount.ts`
+
+**Steps:**
+
+- [ ] **Step 1: Global nav links in sidebar**
+
+Add at top of sidebar (above cluster accordion):
+- "Overview" → `/` (dashboard for admin, cluster list for others)
+- "All Messages" → `/messages` (new route, Task 8.5)
+
+- [ ] **Step 2: `useDlqNewCount(configId)` hook**
+
+```typescript
+// Queries GET /api/dlq-configs/:configId/messages?status=NEW&pageSize=0
+// Returns totalCount from response headers or count field
+// Invalidates on MESSAGE_STATUS_CHANGED SSE event for this configId
+```
+
+- [ ] **Step 3: Badge in sidebar DLQ Config accordion**
+
+For each DLQ Config item:
+```tsx
+{count > 0
+  ? <span className="badge badge-new">{count}</span>
+  : <span className="sidebar-dot muted" />
+}
+```
+Apply `--status-new` color token for badge. Muted dot when zero.
+
+- [ ] **Step 4: SSE-driven update**
+
+In `AppShell`, listen to SSE events of type `MESSAGE_STATUS_CHANGED`. On receipt, `queryClient.invalidateQueries(['dlq-new-count', event.data.dlqConfigId])`.
+
+- [ ] **Step 5: Playwright E2E — `e2e/sidebar/sidebar-badge.spec.ts`**
+
+  Mock message count endpoint. Assert badge shows NEW count. Simulate SSE event → badge updates (SIDEBAR-002..004).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git commit -am "feat: sidebar — global nav (Overview, All Messages) + NEW badge counts with SSE update"
+```
+
+---
+
+### Task 8.4 — Message List overhaul (side filter + payload preview + bulk selection)
+
+**Files:**
+- `frontend/src/pages/messages/MessageListPage.tsx` (full rewrite)
+- `frontend/src/pages/messages/FilterPanel.tsx` (new)
+- `frontend/src/pages/messages/MessageRow.tsx` (new)
+
+**Steps:**
+
+- [ ] **Step 1: `FilterPanel.tsx`**
+
+Left-side panel (~220px, `position: sticky`, full page height). Contains:
+- Status multi-select (checkboxes or select)
+- Date range from/to inputs
+- Partition number input
+- Offset range from/to inputs
+- "Clear filters" button
+
+- [ ] **Step 2: Payload preview column**
+
+In `MessageRow.tsx`, add payload preview cell:
+```tsx
+const preview = msg.rawPayload
+  ? msg.rawPayload.slice(0, 80) + (msg.rawPayload.length > 80 ? '…' : '')
+  : '—'
+```
+Render in monospace, muted color.
+
+- [ ] **Step 3: Checkbox column + selection state**
+
+Add `useState<Set<string>>(new Set())` for `selectedIds`. Checkbox column: first column. "Select all" checkbox in header. `selectedIds.size` drives "Replay (N selected)" button label.
+
+- [ ] **Step 4: Layout update**
+
+Replace current horizontal filter bar with two-column layout:
+```tsx
+<div style={{ display: 'flex', gap: 24 }}>
+  <FilterPanel ... />
+  <div style={{ flex: 1 }}>
+    {/* table + pagination */}
+  </div>
+</div>
+```
+
+- [ ] **Step 5: Playwright E2E**
+
+  - `e2e/messages/filter-panel-layout.spec.ts` — filter panel renders as side panel, not inline bar (MSG-007)
+  - `e2e/messages/message-list-columns.spec.ts` — payload preview column present, truncated at 80 chars (MSG-003)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git commit -am "feat: message list — side filter panel, payload preview column, bulk checkbox selection"
+```
+
+---
+
+### Task 8.5 — Bulk Replay
+
+**Files:**
+- `backend/src/main/java/it/dls/application/replay/BulkReplayUseCase.java`
+- `backend/src/main/java/it/dls/infrastructure/api/BulkReplayResource.java`
+- `backend/src/test/java/it/dls/application/replay/BulkReplayUseCaseTest.java`
+- `frontend/src/pages/messages/MessageListPage.tsx` (add bulk replay button)
+
+**Steps:**
+
+- [ ] **Step 1: `BulkReplayUseCase`**
+
+```java
+@ApplicationScoped
+public class BulkReplayUseCase {
+
+    @Inject MessageRepository messageRepo;
+    @Inject DlqConfigRepository dlqConfigRepo;
+    @Inject KafkaProducerPort producer;
+    @Inject AuditRepository auditRepo;
+
+    @Transactional
+    public BulkReplayResult bulkReplay(UUID dlqConfigId, List<UUID> messageIds, UUID performedBy) {
+        var config = dlqConfigRepo.findById(dlqConfigId)
+            .orElseThrow(() -> new IllegalArgumentException("DlqConfig not found"));
+        int success = 0, failed = 0;
+        for (UUID id : messageIds) {
+            var msg = messageRepo.findById(id).orElseThrow();
+            String topic = resolveReplayTopic(config, msg);
+            try {
+                producer.publish(msg, topic);
+                msg.transitionTo(MessageStatus.REPLAYED);
+                auditRepo.save(new ReplayAuditRecord(id, performedBy, Instant.now(), topic, false, null, 1));
+                success++;
+            } catch (Exception e) {
+                msg.transitionTo(MessageStatus.REPLAY_FAILED);
+                auditRepo.save(new ReplayAuditRecord(id, performedBy, Instant.now(), topic, false, e.getMessage(), 1));
+                failed++;
+            }
+            messageRepo.save(msg);
+        }
+        return new BulkReplayResult(success, failed);
+    }
+
+    private String resolveReplayTopic(DlqConfig config, DlqMessage msg) {
+        if (config.getDefaultReplayTopic() != null) return config.getDefaultReplayTopic();
+        String header = msg.getHeaders().get("x-original-topic");
+        if (header != null) return header;
+        throw new IllegalStateException("No replay topic resolvable for message " + msg.getId());
+    }
+}
+```
+
+- [ ] **Step 2: `BulkReplayResource`**
+
+```java
+@POST @Path("/api/dlq-configs/{configId}/messages/bulk-replay")
+@RolesAllowed({"ADMIN", "OPERATOR"})
+public Response bulkReplay(@PathParam("configId") UUID configId, BulkReplayRequest req) {
+    UUID userId = securityContext.getUserPrincipal().getName(); // resolve from JWT
+    var result = bulkReplayUseCase.bulkReplay(configId, req.messageIds(), userId);
+    return Response.ok(result).build();
+}
+```
+
+- [ ] **Step 3: Unit tests — `BulkReplayUseCaseTest`**
+
+  - `bulkReplay_allSuccess_returnsCorrectCount`
+  - `bulkReplay_someFailures_partialSuccess`
+  - `bulkReplay_noReplayTopic_skipsMessage`
+  - `bulkReplay_producesAuditRecordPerMessage`
+
+- [ ] **Step 4: Frontend — "Replay (N selected)" button**
+
+In `MessageListPage.tsx`:
+```tsx
+const canBulkReplay = config?.defaultReplayTopic != null ||
+  selectedMessages.some(m => m.headers['x-original-topic'])
+
+<button
+  className="btn btn-primary"
+  disabled={selectedIds.size === 0 || !canBulkReplay}
+  onClick={handleBulkReplay}
+>
+  Replay ({selectedIds.size} selected)
+</button>
+```
+
+On confirm: `POST /api/dlq-configs/{configId}/messages/bulk-replay` with `{ messageIds: [...selectedIds] }`. Show toast: `"N replayed, N failed"`.
+
+- [ ] **Step 5: Playwright E2E**
+
+  - `e2e/replay/bulk-replay-ui.spec.ts` — button disabled when no topic (BULK-003)
+  - `e2e/replay/bulk-replay.spec.ts` — bulk replay flow, toast summary (BULK-004, BULK-007)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git commit -am "feat: bulk replay — BulkReplayUseCase, REST endpoint, frontend button + toast summary"
+```
+
+---
+
+### Task 8.6 — All Messages cross-DLQ page
+
+**Files:**
+- `backend/src/main/java/it/dls/infrastructure/api/MessageResource.java` (add GET /)
+- `frontend/src/pages/messages/AllMessagesPage.tsx`
+- `frontend/src/App.tsx` (add `/messages` route)
+
+**Steps:**
+
+- [ ] **Step 1: Backend `GET /api/messages`**
+
+In `InspectMessagesUseCase`, add:
+```java
+public Page<DlqMessage> listAllMessages(String statusFilter, int page, int pageSize, UUID userId) {
+    // Returns messages from all DlqConfigs the user has access to
+    // Applies optional status filter
+}
+```
+
+In `MessageResource`:
+```java
+@GET
+@Path("/api/messages")
+@RolesAllowed({"ADMIN", "OPERATOR", "VIEWER"})
+public Response listAllMessages(
+    @QueryParam("status") String status,
+    @QueryParam("page") @DefaultValue("0") int page,
+    @QueryParam("pageSize") @DefaultValue("50") int pageSize
+) { ... }
+```
+
+Response items include: `clusterId`, `clusterName`, `dlqConfigId`, `dlqConfigDisplayName` + standard message fields.
+
+- [ ] **Step 2: `AllMessagesPage.tsx`**
+
+  - Fetch `GET /api/messages?status=...`
+  - Table columns: Cluster, DLQ Config, Status badge, Timestamp, Partition, Offset, Payload preview (80 chars)
+  - Status filter dropdown (single select, all statuses + "All")
+  - Each row links to `/messages/:messageId`
+
+- [ ] **Step 3: Route in `App.tsx`**
+
+```tsx
+<Route path="/messages" element={<AllMessagesPage />} />
+```
+
+- [ ] **Step 4: Playwright E2E — `e2e/messages/all-messages.spec.ts`**
+
+  Mock `/api/messages`. Assert: Cluster + DLQ Config columns visible, status filter works, row links to detail (ALLMSG-002..005).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -am "feat: all messages cross-DLQ view — GET /api/messages + AllMessagesPage"
+```
+
+---
+
+### Task 8.7 — Settings page
+
+**Files:**
+- `frontend/src/pages/settings/SettingsLayout.tsx`
+- `frontend/src/pages/settings/SettingsGeneralPage.tsx`
+- `frontend/src/hooks/useTheme.ts`
+- `frontend/src/App.tsx` (add `/settings/*` routes)
+
+**Steps:**
+
+- [ ] **Step 1: `useTheme` hook**
+
+```typescript
+// Reads/writes 'dls-theme' key in localStorage
+// Applies 'light' class to document.documentElement (design-system/tokens.css uses .light override)
+// Defaults to dark
+export function useTheme() {
+  const [theme, setTheme] = useState<'dark' | 'light'>(
+    () => (localStorage.getItem('dls-theme') as 'dark' | 'light') ?? 'dark'
+  )
+  useEffect(() => {
+    document.documentElement.classList.toggle('light', theme === 'light')
+    localStorage.setItem('dls-theme', theme)
+  }, [theme])
+  return { theme, setTheme }
+}
+```
+
+Apply `useTheme` at app root (`App.tsx`) so theme persists on startup before first render.
+
+- [ ] **Step 2: `SettingsLayout.tsx`**
+
+Two-column layout: left nav (~200px) + right content (`<Outlet />`).
+
+Left nav links:
+- "Clusters" → `/settings/clusters` (redirects to `/clusters`)
+- "Members & Roles" → `/settings/users` (redirects to `/admin/users`)
+- "General" → `/settings/general` (theme toggle)
+
+- [ ] **Step 3: `SettingsGeneralPage.tsx`**
+
+```tsx
+const { theme, setTheme } = useTheme()
+// Toggle: "Dark" / "Light" radio or switch
+```
+
+- [ ] **Step 4: Routes in `App.tsx`**
+
+```tsx
+<Route path="/settings" element={<SettingsLayout />}>
+  <Route index element={<Navigate to="/settings/general" replace />} />
+  <Route path="general" element={<SettingsGeneralPage />} />
+  <Route path="clusters" element={<Navigate to="/clusters" replace />} />
+  <Route path="users" element={<Navigate to="/admin/users" replace />} />
+</Route>
+```
+
+- [ ] **Step 5: Playwright E2E — `e2e/settings/settings.spec.ts`**
+
+  - Navigate to `/settings` → redirects to `/settings/general` (SETTINGS-001)
+  - Toggle light mode → `documentElement` gets `.light` class, localStorage updated (SETTINGS-002, SETTINGS-003)
+  - Reload → light mode still active (SETTINGS-004)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git commit -am "feat: settings page — /settings route, left nav, light/dark toggle with localStorage persistence"
+```
+
+---
+
+### Task 8.8 — Message Detail 4-col grid + Replay Wizard stepper
+
+**Files:**
+- `frontend/src/pages/messages/MessageDetailPage.tsx`
+- `frontend/src/pages/messages/ReplayWizard.tsx`
+
+**Steps:**
+
+- [ ] **Step 1: Message Detail 4-col metadata grid**
+
+Replace current 2-col `gridTemplateColumns: '1fr 1fr'` with 4-col `gridTemplateColumns: 'repeat(4, 1fr)'`. Each cell is one field: Partition | Offset | Kafka Timestamp | Ingested At. Schema ID conditionally appended below if present.
+
+- [ ] **Step 2: Replay Wizard visual stepper**
+
+Add at top of `ReplayWizard` dialog:
+```tsx
+const steps = ['Select Topic', 'Edit Payload', 'Confirm']
+const stepIndex = { review: 0, edit: 1, confirm: 2 }
+
+<div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+  {steps.map((label, i) => (
+    <div key={label} style={{
+      flex: 1, textAlign: 'center', fontSize: 11,
+      fontWeight: i === stepIndex[step] ? 600 : 400,
+      borderBottom: `2px solid ${i === stepIndex[step]
+        ? 'hsl(var(--primary))' : 'hsl(var(--border))'}`,
+      paddingBottom: 4
+    }}>
+      {i + 1}. {label}
+    </div>
+  ))}
+</div>
+```
+
+- [ ] **Step 3: Playwright update — `e2e/messages/message-detail.spec.ts`**
+
+  Assert 4-col grid present (4 metadata cells) (MSG-008).
+
+- [ ] **Step 4: Playwright update — `e2e/replay/replay-wizard.spec.ts`**
+
+  Assert stepper bar visible with 3 steps (REPLAY-002 update).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -am "feat: message detail 4-col metadata grid + replay wizard visual stepper"
+```
+
+---
+
 ## Execution Summary
 
 | Phase | Goal | EVALUATION.md |
@@ -2759,5 +3321,6 @@ git commit -am "docs: SETUP.md — standalone, Keycloak, Okta, encryption key, K
 | 5 | Note Thread | NOTE-001..005 |
 | 6 | Replay | REPLAY-001..009 |
 | 7 | Retention + SSE frontend + OpenAPI | RETENTION-001..003, SSE-001..003 |
+| 8 | UI Fidelity (design system compliance) | DASH-001..010, BULK-001..007, ALLMSG-001..005, SIDEBAR-001..004, SETTINGS-001..004, MSG-003/007/008 |
 
 Each phase produces working, tested software independently. Commit per task. All EVALUATION.md requirements covered.

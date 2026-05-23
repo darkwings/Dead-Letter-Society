@@ -154,9 +154,13 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 
 **[MSG-002]** The system shall support filtering the message list by: Message Status, timestamp range (from/to), partition number, and offset range (from/to).
 
-**[MSG-003]** The system shall display for each Message in the list: status badge, timestamp, partition, offset, and a preview of the decoded payload (truncated).
+**[MSG-003]** The system shall display for each Message in the list: checkbox, status badge, timestamp, partition, offset, and a payload preview showing the first 80 characters of the raw JSON payload truncated with `…`.
 
 **[MSG-004]** When a user opens a Message detail, the system shall display: full decoded payload (formatted JSON), raw payload (hex/base64), all Kafka headers, Message Status, ingestion timestamp, and Replay Audit Record (if present).
+
+**[MSG-007]** The system shall display the Message List filter controls in a left-side panel (~220px wide) rather than an inline horizontal bar.
+
+**[MSG-008]** When a user opens a Message detail, the system shall display the message metadata (partition, offset, Kafka timestamp, ingested at) in a 4-column grid layout.
 
 **[MSG-005]** While a user is viewing the detail of a Message that gets deleted by the Retention Policy job, the system shall display a "Message no longer available" notification and redirect the user to the message list.
 
@@ -210,7 +214,87 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 
 ---
 
-## 8. Retention Policy
+## 7b. Bulk Replay
+
+**[BULK-001]** The system shall allow OPERATOR and ADMIN to select multiple Messages in the Message List via checkboxes and initiate a Bulk Replay.
+
+**[BULK-002]** When ≥1 Messages are selected in the Message List, the system shall display a "Replay (N selected)" button showing the count of selected messages.
+
+**[BULK-003]** The system shall disable the "Replay (N selected)" button when none of the selected Messages have a resolvable Replay Topic (no Default Replay Topic on the DLQ Config and no `x-original-topic` header on any selected message).
+
+**[BULK-004]** When the user confirms a Bulk Replay, the system shall replay all selected Messages to the Default Replay Topic of the DLQ Config without displaying the Replay Wizard and without payload editing.
+
+**[BULK-005]** The system shall produce one immutable Replay Audit Record per Message in a Bulk Replay, each recording `replayedBy` (performing user ID).
+
+**[BULK-006]** Each Message in a Bulk Replay shall transition to `REPLAYED` or `REPLAY_FAILED` independently based on its individual Kafka publish result.
+
+**[BULK-007]** When a Bulk Replay completes, the system shall display a toast summarizing: N successful, N failed.
+
+---
+
+## 8. Dashboard *(ADMIN only)*
+
+**[DASH-001]** When an ADMIN navigates to `/`, the system shall display the Dashboard as the home screen.
+
+**[DASH-002]** When a non-ADMIN user navigates to `/`, the system shall redirect to the Kafka Cluster list.
+
+**[DASH-003]** The system shall display the Dashboard with a loading skeleton while stats are being fetched from the backend.
+
+**[DASH-004]** The Dashboard shall display five Summary Cards, one per Message Status (NEW, UNDER_REVIEW, REPLAYED, DISCARDED, REPLAY_FAILED), each showing the total message count across all DLQ Configs.
+
+**[DASH-005]** The Dashboard shall display a caption showing the timestamp of when the stats were last computed (`computedAt` returned by the API).
+
+**[DASH-006]** The Dashboard shall display a Sparkline Chart showing the daily Replay Rate (percentage of REPLAYED messages over total messages ingested that day) for the last 7 days.
+
+**[DASH-007]** The Dashboard shall display a DLQ Status Table listing all DLQ Configs with: display name, cluster name, NEW message count, and last fetch timestamp. A DLQ Config with no ingested messages shall appear with zero counts.
+
+**[DASH-008]** The system shall expose `GET /api/dashboard/summary` (ADMIN only) returning: per-status message counts and a `computedAt` timestamp.
+
+**[DASH-009]** The system shall expose `GET /api/dashboard/sparkline?days=7` (ADMIN only) returning an array of daily data points `[{ date, replayed, total }]` for the requested window.
+
+**[DASH-010]** If a non-ADMIN user calls `GET /api/dashboard/summary` or `GET /api/dashboard/sparkline`, then the system shall return HTTP 403 Problem Detail.
+
+---
+
+## 8b. All Messages
+
+**[ALLMSG-001]** The system shall expose `GET /api/messages` returning Messages across all DLQ Configs accessible to the authenticated user, with optional `status` filter parameter.
+
+**[ALLMSG-002]** The "All Messages" page shall be accessible from the global "All Messages" link in the Sidebar navigation and display the cross-DLQ message list.
+
+**[ALLMSG-003]** The "All Messages" page shall support filtering by Message Status only.
+
+**[ALLMSG-004]** The "All Messages" page shall display for each Message: Cluster name, DLQ Config display name, status badge, Kafka timestamp, partition, offset, and payload preview (first 80 chars truncated).
+
+**[ALLMSG-005]** Each row in the "All Messages" list shall link to the Message Detail page.
+
+---
+
+## 8c. Sidebar Navigation
+
+**[SIDEBAR-001]** The Sidebar shall display a global navigation section with links: "Overview" (→ Dashboard for ADMIN, → Cluster list for others) and "All Messages" (→ cross-DLQ message list).
+
+**[SIDEBAR-002]** The Sidebar shall display a Badge Count (count of NEW messages) next to each DLQ Config name in the cluster accordion.
+
+**[SIDEBAR-003]** When a DLQ Config has zero NEW messages, the system shall display a muted dot (no number) instead of a badge.
+
+**[SIDEBAR-004]** When the system receives a `MESSAGE_STATUS_CHANGED` SSE event, the system shall update the Sidebar Badge Count for the affected DLQ Config without requiring a page reload.
+
+---
+
+## 8d. Settings
+
+**[SETTINGS-001]** The system shall provide a `/settings` route displaying a left navigation panel with sections: "Clusters" (links to cluster management) and "Members & Roles" (links to user management).
+
+**[SETTINGS-002]** The Settings page shall display a light/dark mode toggle.
+
+**[SETTINGS-003]** When a user changes the theme via the toggle, the system shall persist the preference in `localStorage` under a stable key.
+
+**[SETTINGS-004]** On application startup, before first render, the system shall read the theme preference from `localStorage` and apply it, preventing a flash of wrong theme.
+
+---
+
+## 10. Retention Policy
 
 **[RETENTION-001]** The system shall execute a periodic retention job that deletes Messages from the database according to each DLQ Config's Retention Policy.
 
@@ -220,7 +304,7 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 
 ---
 
-## 9. API Error Format
+## 11. API Error Format
 
 **[API-001]** The system shall return all error responses with `Content-Type: application/problem+json` and a body conforming to RFC 7807, containing at minimum: `type`, `title`, `status`, `detail`.
 
@@ -236,7 +320,7 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 
 ---
 
-## 11. Sicurezza
+## 12. Sicurezza
 
 **[SEC-001]** The system shall not store plaintext Kafka credentials in the database.
 
@@ -248,7 +332,7 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 
 ---
 
-## 10. Notifiche SSE
+## 13. Notifiche SSE
 
 **[SSE-001]** The system shall provide a server-sent events (SSE) endpoint that authenticated users can subscribe to for real-time notifications.
 
@@ -258,7 +342,7 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 
 ---
 
-## 12. Sviluppo locale
+## 14. Sviluppo locale
 
 **[DEV-001]** The system shall support local development using Quarkus Dev Services, which automatically provisions PostgreSQL, Kafka, and Confluent Schema Registry via Testcontainers/OrbStack without manual configuration.
 
@@ -276,6 +360,10 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 | REPLAY-003 | `ReplayTopicResolver` | Unit |
 | REPLAY-004, REPLAY-005 | `SchemaValidationService` | Unit |
 | REPLAY-006 | `ReplayMessageUseCase` | Unit |
+| BULK-003 | `BulkReplayUseCase` (topic resolution check) | Unit |
+| BULK-005, BULK-006 | `BulkReplayUseCase` (audit record + independent status) | Unit |
+| DASH-008 | `DashboardUseCase` (summary counts) | Unit |
+| DASH-009 | `DashboardUseCase` (sparkline aggregation) | Unit |
 | AUTH-005, AUTH-006 | `AuthenticationService` | Unit |
 | CLUSTER-004 | `CredentialEncryptionAdapter` | Unit |
 | SEC-003 | `ApplicationStartup` | Unit |
@@ -287,6 +375,10 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 | FETCH-001 ~ FETCH-012 | Fetch pipeline completo | Kafka + PostgreSQL + Schema Registry |
 | CLUSTER-002, CLUSTER-003 | Connectivity test DLQ Config | Kafka + Schema Registry |
 | REPLAY-006 ~ REPLAY-009 | Replay end-to-end | Kafka + PostgreSQL |
+| BULK-004 ~ BULK-007 | Bulk Replay: N messaggi → auditRecord × N, status indipendenti, toast summary | Kafka + PostgreSQL |
+| DASH-008, DASH-010 | Dashboard summary endpoint: conteggi corretti, 403 per non-ADMIN | PostgreSQL |
+| DASH-009 | Dashboard sparkline: 7 data points, replay rate corretto | PostgreSQL |
+| ALLMSG-001 | Cross-DLQ GET /api/messages: filtra per status, rispetta access control | PostgreSQL |
 | AUTH-003 ~ AUTH-007 | Autenticazione standalone | PostgreSQL |
 | AUTH-008 ~ AUTH-011 | Autenticazione OIDC | Keycloak (Testcontainers) |
 | RETENTION-001, RETENTION-002 | Retention job | PostgreSQL |
@@ -313,10 +405,20 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 | API-001 ~ API-003 | Risposte errore in application/problem+json con violations | `e2e/api/problem-json.spec.ts` |
 | FETCH-007, FETCH-009 | Fetch on-demand → badge aggiornato + lista refresh | `e2e/fetch/on-demand-fetch.spec.ts` |
 | FETCH-010 | On-demand fetch bloccato → toast "Fetch in corso" | `e2e/fetch/fetch-blocked.spec.ts` |
-| MSG-001, MSG-002 | Filtri lista messaggi (stato, timestamp, partition) | `e2e/messages/filter-messages.spec.ts` |
-| MSG-004 | Dettaglio messaggio: payload JSON + headers + audit | `e2e/messages/message-detail.spec.ts` |
+| DASH-001, DASH-002 | Admin vede Dashboard home; non-admin reindirizzato a cluster list | `e2e/dashboard/dashboard-home.spec.ts` |
+| DASH-003 ~ DASH-007 | Dashboard: skeleton → summary cards → sparkline → DLQ table → computedAt | `e2e/dashboard/dashboard-content.spec.ts` |
+| DASH-010 | Non-admin chiama /api/dashboard/summary → HTTP 403 | `e2e/dashboard/dashboard-auth.spec.ts` |
+| MSG-001, MSG-002 | Filtri lista messaggi (stato, timestamp, partition) via side panel | `e2e/messages/filter-messages.spec.ts` |
+| MSG-003 | Payload preview column: primi 80 chars troncati | `e2e/messages/message-list-columns.spec.ts` |
+| MSG-004, MSG-008 | Dettaglio messaggio: payload JSON + headers + audit + 4-col metadata grid | `e2e/messages/message-detail.spec.ts` |
+| MSG-007 | Filter panel è side panel sx (non inline bar) | `e2e/messages/filter-panel-layout.spec.ts` |
+| BULK-001 ~ BULK-003 | Selezione messaggi → pulsante "Replay (N)" → disabilitato senza topic | `e2e/replay/bulk-replay-ui.spec.ts` |
+| BULK-004, BULK-007 | Bulk replay → audit records + toast summary N ok / N falliti | `e2e/replay/bulk-replay.spec.ts` |
+| ALLMSG-002 ~ ALLMSG-005 | "All Messages": filtro status, colonne Cluster+DLQ, link a detail | `e2e/messages/all-messages.spec.ts` |
+| SIDEBAR-002 ~ SIDEBAR-004 | Badge count NEW per DLQ, dot muted se zero, aggiorna via SSE | `e2e/sidebar/sidebar-badge.spec.ts` |
+| SETTINGS-001 ~ SETTINGS-004 | Settings: left nav, toggle light/dark, persiste in localStorage | `e2e/settings/settings.spec.ts` |
 | NOTE-001 ~ NOTE-003 | Aggiunta nota → immediata + SSE real-time | `e2e/notes/add-note.spec.ts` |
-| REPLAY-002 ~ REPLAY-007 | Replay wizard completo (OPERATOR) | `e2e/replay/replay-wizard.spec.ts` |
+| REPLAY-002 ~ REPLAY-007 | Replay wizard completo (OPERATOR) con visual stepper | `e2e/replay/replay-wizard.spec.ts` |
 | REPLAY-004, REPLAY-005 | Editing payload invalido → "Confirm" disabilitato | `e2e/replay/payload-validation.spec.ts` |
 | REPLAY-008 | Replay fallito → toast errore + retry | `e2e/replay/replay-failed.spec.ts` |
 | AUTH-013 | Chiamata API non autorizzata → HTTP 403 con messaggio specifico | `e2e/auth/api-403.spec.ts` |

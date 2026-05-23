@@ -14,6 +14,12 @@ interface ReplayWizardProps {
 
 type Step = 'review' | 'edit' | 'confirm'
 
+const STEPS: { key: Step; label: string }[] = [
+  { key: 'review', label: 'Select Topic' },
+  { key: 'edit', label: 'Edit Payload' },
+  { key: 'confirm', label: 'Confirm' },
+]
+
 interface ReplayRequest {
   targetTopicOverride?: string
   editedPayload?: unknown
@@ -99,6 +105,26 @@ export default function ReplayWizard({
   return (
     <Dialog open onClose={onClose}>
       <DialogTitle>Replay Message</DialogTitle>
+
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20 }}>
+        {STEPS.map((s, i) => {
+          const active = s.key === step
+          const done = STEPS.findIndex(x => x.key === step) > i
+          return (
+            <div
+              key={s.key}
+              style={{
+                flex: 1, textAlign: 'center', fontSize: 11, paddingBottom: 6,
+                fontWeight: active ? 600 : 400,
+                color: active ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
+                borderBottom: `2px solid ${active ? 'hsl(var(--primary))' : done ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`,
+              }}
+            >
+              {i + 1}. {s.label}
+            </div>
+          )
+        })}
+      </div>
 
       {step === 'review' && (
         <div>

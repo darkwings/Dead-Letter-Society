@@ -1,5 +1,6 @@
 package it.dls.infrastructure.persistence;
 
+import it.dls.application.dashboard.SparklinePoint;
 import it.dls.domain.message.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -7,11 +8,10 @@ import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class MessageRepositoryAdapter implements MessageRepository {
@@ -80,6 +80,70 @@ public class MessageRepositoryAdapter implements MessageRepository {
             .map(DlqMessageEntity::toDomain)
             .toList();
         return new MessagePage(messages, total, p.page(), p.size());
+    }
+
+    @Override
+    @Transactional(Transactional.TxType.SUPPORTS)
+    public MessagePage findAll(MessageStatus statusFilter, Pageable p, List<UUID> accessibleConfigIds) {
+        if (accessibleConfigIds.isEmpty()) {
+            return new MessagePage(List.of(), 0, p.page(), p.size());
+        }
+        var base = new StringBuilder("dlqConfigId IN :ids");
+        var params = new HashMap<String, Object>();
+        params.put("ids", accessibleConfigIds);
+        if (statusFilter != null) {
+            base.append(" AND status = :status");
+            params.put("status", statusFilter);
+        }
+        String q = base.toString();
+        long total = DlqMessageEntity.count(q, params);
+        List<DlqMessage> messages = DlqMessageEntity
+            .<DlqMessageEntity>find(q + " ORDER BY kafkaTimestamp DESC", params)
+            .page(p.page(), p.size())
+            .stream()
+            .map(DlqMessageEntity::toDomain)
+            .toList();
+        return new MessagePage(messages, total, p.page(), p.size());
+    }
+
+    @Override
+    @Transactional(Transactional.TxType.SUPPORTS)
+    public long countByStatus(MessageStatus status) {
+        return DlqMessageEntity.count("status", status);
+    }
+
+    @Override
+    @Transactional(Transactional.TxType.SUPPORTS)
+    public List<SparklinePoint> getSparklineData(int days) {
+        Instant cutoff = LocalDate.now(ZoneOffset.UTC).minusDays(days - 1)
+            .atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("""
+            SELECT
+                DATE_TRUNC('day', ingested_at AT TIME ZONE 'UTC') AS day,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE status = 'REPLAYED') AS replayed
+            FROM dlq_messages
+            WHERE ingested_at >= :cutoff
+            GROUP BY day
+            ORDER BY day
+            """)
+            .setParameter("cutoff", cutoff)
+            .getResultList();
+
+        Map<LocalDate, long[]> byDay = rows.stream().collect(Collectors.toMap(
+            r -> ((java.sql.Timestamp) r[0]).toLocalDateTime().toLocalDate(),
+            r -> new long[]{ ((Number) r[2]).longValue(), ((Number) r[1]).longValue() }
+        ));
+
+        return LocalDate.now(ZoneOffset.UTC).minusDays(days - 1)
+            .datesUntil(LocalDate.now(ZoneOffset.UTC).plusDays(1))
+            .map(date -> {
+                long[] vals = byDay.getOrDefault(date, new long[]{0, 0});
+                return new SparklinePoint(date, vals[0], vals[1]);
+            })
+            .toList();
     }
 
     @Override

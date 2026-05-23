@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useCallback, useState } from 'react'
+import { Link, NavLink, useLocation } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 import { useAuthStore } from '@/stores/authStore'
+import { useSSE } from '@/hooks/useSSE'
 
 interface ClusterResponse {
   id: string
@@ -29,6 +30,35 @@ const Chevron = ({ down }: { down: boolean }) => (
     <path d="m2 3.5 3 3 3-3" />
   </svg>
 )
+
+function DlqBadge({ configId }: { configId: string }) {
+  const { data } = useQuery({
+    queryKey: ['dlq-badge', configId],
+    queryFn: () => apiFetch<{ total: number }>(`/api/dlq-configs/${configId}/messages?status=NEW&size=0&page=0`),
+    staleTime: 30_000,
+  })
+  const count = data?.total ?? 0
+  if (count > 0) {
+    return (
+      <span style={{
+        fontSize: 10, fontWeight: 700, lineHeight: 1,
+        padding: '2px 5px', borderRadius: 8,
+        background: 'hsl(var(--status-new-bg, var(--status-new) / 0.15))',
+        color: 'hsl(var(--status-new))',
+        minWidth: 18, textAlign: 'center',
+      }}>
+        {count > 99 ? '99+' : count}
+      </span>
+    )
+  }
+  return (
+    <span style={{
+      width: 6, height: 6, borderRadius: '50%',
+      background: 'hsl(var(--muted-foreground) / 0.3)',
+      flexShrink: 0,
+    }} />
+  )
+}
 
 function ClusterNavItem({ cluster, defaultExpanded }: { cluster: ClusterResponse; defaultExpanded: boolean }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
@@ -79,15 +109,18 @@ function ClusterNavItem({ cluster, defaultExpanded }: { cluster: ClusterResponse
                   key={cfg.id}
                   to={`/dlq-configs/${cfg.id}/messages`}
                   style={{
-                    display: 'block', padding: '5px 10px',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 10px',
                     fontSize: 12, textDecoration: 'none',
                     color: active ? 'hsl(var(--accent-foreground))' : 'hsl(var(--muted-foreground))',
                     background: active ? 'hsl(var(--accent))' : 'transparent',
                     borderRadius: 'var(--radius)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}
                 >
-                  {cfg.displayName}
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {cfg.displayName}
+                  </span>
+                  <DlqBadge configId={cfg.id} />
                 </Link>
               )
             })
@@ -111,11 +144,34 @@ export default function Sidebar() {
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
   const isAdmin = user?.globalRole === 'ADMIN'
+  const queryClient = useQueryClient()
 
   const { data: clusters = [], isLoading } = useQuery({
     queryKey: ['clusters'],
     queryFn: () => apiFetch<ClusterResponse[]>('/api/clusters'),
   })
+
+  const onSseEvent = useCallback(
+    (event: { type: string; data?: Record<string, unknown> }) => {
+      if (event.type === 'MESSAGE_STATUS_CHANGED' && event.data?.dlqConfigId) {
+        queryClient.invalidateQueries({
+          queryKey: ['dlq-badge', event.data.dlqConfigId as string],
+        })
+      }
+      if (event.type === 'FETCH_COMPLETED' && event.data?.dlqConfigId) {
+        queryClient.invalidateQueries({
+          queryKey: ['dlq-badge', event.data.dlqConfigId as string],
+        })
+      }
+    },
+    [queryClient],
+  )
+  useSSE(onSseEvent)
+
+  const globalNav = [
+    { to: isAdmin ? '/dashboard' : '/clusters', label: 'Overview' },
+    { to: '/messages', label: 'All Messages' },
+  ]
 
   return (
     <nav
@@ -127,9 +183,29 @@ export default function Sidebar() {
         overflow: 'hidden',
       }}
     >
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 6px 6px' }} className="scroll">
+      <div style={{ padding: '10px 6px 0' }}>
+        {globalNav.map(({ to, label }) => {
+          const active = location.pathname === to
+          return (
+            <NavLink
+              key={label}
+              to={to}
+              style={{
+                display: 'block', padding: '6px 10px', fontSize: 12.5, fontWeight: 500,
+                color: active ? 'hsl(var(--accent-foreground))' : 'hsl(var(--foreground))',
+                background: active ? 'hsl(var(--accent))' : 'transparent',
+                textDecoration: 'none', borderRadius: 'var(--radius)', marginBottom: 2,
+              }}
+            >
+              {label}
+            </NavLink>
+          )
+        })}
+        <div style={{ height: 1, background: 'hsl(var(--border))', margin: '8px 4px' }} />
         <p className="t-h4" style={{ padding: '0 6px', marginBottom: 8 }}>DLQ Configs</p>
+      </div>
 
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 6px 6px' }} className="scroll">
         {isLoading ? (
           <span style={{ display: 'block', padding: '4px 10px', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
             Loading…
@@ -151,6 +227,7 @@ export default function Sidebar() {
           {([
             { to: '/clusters', label: 'Clusters' },
             { to: '/admin/users', label: 'Users' },
+            { to: '/settings', label: 'Settings' },
           ] as const).map(({ to, label }) => {
             const active = location.pathname === to || location.pathname.startsWith(to + '/')
             return (

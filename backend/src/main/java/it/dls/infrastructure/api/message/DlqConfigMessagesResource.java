@@ -1,6 +1,7 @@
 package it.dls.infrastructure.api.message;
 
 import it.dls.application.inspection.InspectMessagesUseCase;
+import it.dls.application.replay.BulkReplayUseCase;
 import it.dls.domain.message.MessageFilter;
 import it.dls.domain.message.MessageStatus;
 import it.dls.domain.message.Pageable;
@@ -13,6 +14,7 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Path("/api/dlq-configs/{configId}/messages")
@@ -22,6 +24,7 @@ import java.util.UUID;
 public class DlqConfigMessagesResource {
 
     @Inject InspectMessagesUseCase inspectMessages;
+    @Inject BulkReplayUseCase bulkReplay;
     @Inject JsonWebToken jwt;
 
     @GET
@@ -49,6 +52,23 @@ public class DlqConfigMessagesResource {
             return ProblemDetail.forbidden(e.getMessage()).toResponse();
         } catch (Exception e) {
             return ProblemDetail.badRequest(e.getMessage()).toResponse();
+        }
+    }
+
+    @POST
+    @Path("/bulk-replay")
+    @RolesAllowed({"ADMIN", "OPERATOR"})
+    public Response bulkReplay(@PathParam("configId") UUID configId, BulkReplayRequest req) {
+        if (req == null || req.messageIds() == null || req.messageIds().isEmpty()) {
+            return ProblemDetail.badRequest("messageIds must not be empty").toResponse();
+        }
+        try {
+            var result = bulkReplay.bulkReplay(configId, req.messageIds(), currentUserId());
+            return Response.ok(result).build();
+        } catch (IllegalArgumentException e) {
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
+        } catch (SecurityException e) {
+            return ProblemDetail.forbidden(e.getMessage()).toResponse();
         }
     }
 

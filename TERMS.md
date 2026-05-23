@@ -6,6 +6,9 @@ Terminologia canonica del progetto. Tutti i documenti, il codice, i test e le co
 
 ## A
 
+**All Messages**
+Vista cross-DLQ che mostra tutti i `DlqMessage` accessibili all'utente corrente, indipendentemente dalla DLQ Config di appartenenza. Supporta filtro per status. Accessibile da tutti gli utenti autenticati. Navigabile dal link globale "All Messages" nella sidebar.
+
 **ADMIN**
 Ruolo globale. Utente con pieno accesso all'applicazione: gestisce cluster, DLQ config, utenti. Ha accesso implicito in lettura e replay a tutte le DLQ config. Possono esistere più ADMIN. Il primo utente registrato in modalità standalone diventa automaticamente ADMIN.
 
@@ -14,6 +17,9 @@ Ruolo globale. Utente con pieno accesso all'applicazione: gestisce cluster, DLQ 
 ---
 
 ## B
+
+**Badge Count**
+Indicatore numerico visualizzato nella Sidebar accanto al nome di ogni DLQ Config. Mostra il numero di messaggi con status `NEW` nella DLQ Config. Assente (zero o muted dot) se non ci sono messaggi NEW.
 
 **Batch Size**
 Numero massimo di messaggi scaricati da Kafka in un singolo Fetch. Configurabile per DLQ Config. Default: 500.
@@ -39,6 +45,9 @@ Stringa in formato cron (es. `0 */15 * * * ?`) che definisce la frequenza del Fe
 ---
 
 ## D
+
+**Dashboard**
+Schermata home per gli utenti ADMIN. Mostra Summary Cards (conteggi per status), DLQ Status Table (stato per DLQ Config) e Replay Rate Sparkline (grafico replay rate ultimi 7 giorni). Accessibile esclusivamente agli ADMIN; gli altri utenti vengono reindirizzati alla lista cluster.
 
 **Dead Letter Queue (DLQ)**
 Topic Kafka su cui i messaggi vengono instradati automaticamente quando il consumer non riesce a processarli. I messaggi in DLQ sono candidati all'ispezione e all'eventuale Replay.
@@ -172,6 +181,9 @@ Operazione eseguita all'inizio di ogni Fetch che confronta le partizioni note ne
 
 ## R
 
+**Bulk Replay**
+Operazione di Replay semplificata applicata a più messaggi selezionati contemporaneamente nella Message List. Il target è il Default Replay Topic della DLQ Config. Non include editing payload né wizard multi-step. Produce un Replay Audit Record per ogni messaggio. Solo OPERATOR e ADMIN.
+
 **Raw Payload**
 I byte originali del payload di un messaggio Kafka, conservati nel DB senza modifiche.
 
@@ -189,8 +201,11 @@ Il topic Kafka su cui viene ripubblicato un Message durante il Replay. Determina
 1. Override esplicito impostato da OPERATOR nella DLQ Config o durante il wizard
 2. Valore dell'header `x-original-topic` (o equivalente) nel messaggio
 
+**Replay Rate**
+Metrica che esprime la percentuale di messaggi Replayed rispetto al totale dei messaggi in un dato periodo. Formula: `REPLAYED / (REPLAYED + DISCARDED + UNDER_REVIEW + REPLAY_FAILED + NEW)`. Visualizzata nel Dashboard come Sparkline Chart.
+
 **Replay Wizard**
-Interfaccia multi-step guidata per l'esecuzione del Replay. Include: anteprima messaggio, selezione/conferma Replay Topic, editing opzionale del Decoded Payload, validazione schema, conferma finale.
+Interfaccia multi-step guidata per l'esecuzione del Replay di un singolo messaggio. Include: anteprima messaggio, selezione/conferma Replay Topic, editing opzionale del Decoded Payload, validazione schema, conferma finale. Per replay di massa usa → *Bulk Replay*.
 
 **Retention Policy**
 Politica di pulizia automatica dei messaggi nel DB. Configurabile per DLQ Config. Può essere basata su: numero di giorni (`maxAgeDays`) o numero massimo di messaggi (`maxCount`).
@@ -203,6 +218,17 @@ Determinano i permessi nell'applicazione. Due livelli:
 ---
 
 ## S
+
+**Settings**
+Area dell'applicazione raggiungibile tramite `/settings`. Contiene: link alla gestione cluster, link alla gestione utenti (Members & Roles), toggle light/dark mode. Navigazione a sinistra con sezioni "Clusters" e "Members & Roles".
+
+**Sidebar Badge** → vedi *Badge Count*
+
+**Sparkline Chart**
+Grafico ad area miniaturizzato nel Dashboard che visualizza la Replay Rate giornaliera degli ultimi 7 giorni. Backend: `GET /api/dashboard/sparkline?days=7`.
+
+**Summary Cards**
+Cinque card nel Dashboard che mostrano il conteggio totale dei messaggi per ciascuno status (NEW, UNDER_REVIEW, REPLAYED, DISCARDED, REPLAY_FAILED) su tutte le DLQ Config accessibili.
 
 **Schema**
 Definizione strutturata del formato di un payload. Registrata nel Schema Registry. Formati supportati: Avro, Protobuf, JSON Schema.

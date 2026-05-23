@@ -95,14 +95,14 @@ export default function MessageDetailPage() {
         <StatusBadge status={msg.status} testId="status-badge" />
       </div>
 
-      <div className="card" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, padding: 16, marginBottom: 24 }}>
+      <div className="card" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, padding: 16, marginBottom: 24 }}>
         <div>
-          <p className="t-small" style={{ marginBottom: 2 }}>DLQ Config</p>
-          <p style={{ fontFamily: 'monospace', fontSize: 12 }}>{msg.dlqConfigId}</p>
+          <p className="t-small" style={{ marginBottom: 2 }}>Partition</p>
+          <p style={{ fontFamily: 'monospace', fontSize: 12 }}>{msg.partition}</p>
         </div>
         <div>
-          <p className="t-small" style={{ marginBottom: 2 }}>Partition / Offset</p>
-          <p style={{ fontFamily: 'monospace', fontSize: 12 }}>{msg.partition} / {msg.kafkaOffset}</p>
+          <p className="t-small" style={{ marginBottom: 2 }}>Offset</p>
+          <p style={{ fontFamily: 'monospace', fontSize: 12 }}>{msg.kafkaOffset}</p>
         </div>
         <div>
           <p className="t-small" style={{ marginBottom: 2 }}>Kafka Timestamp</p>
@@ -112,8 +112,8 @@ export default function MessageDetailPage() {
           <p className="t-small" style={{ marginBottom: 2 }}>Ingested At</p>
           <p style={{ fontSize: 12 }}>{new Date(msg.ingestedAt).toLocaleString()}</p>
         </div>
-        {msg.schemaId && (
-          <div>
+        {msg.schemaId != null && (
+          <div style={{ gridColumn: '1 / -1' }}>
             <p className="t-small" style={{ marginBottom: 2 }}>Schema ID</p>
             <p style={{ fontFamily: 'monospace', fontSize: 12 }}>
               {msg.schemaId}

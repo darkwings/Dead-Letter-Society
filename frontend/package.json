@@ -24,6 +24,7 @@
     "react-dom": "^19.2.6",
     "react-hook-form": "^7.76.0",
     "react-router-dom": "^6.30.3",
+    "recharts": "^3.8.1",
     "shadcn": "^4.7.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
@@ -44,11 +45,11 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "orval": "^7.10.0",
     "playwright": "^1.60.0",
     "tailwindcss": "^4.3.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12",
-    "orval": "^7.10.0"
+    "vite": "^8.0.12"
   }
 }
