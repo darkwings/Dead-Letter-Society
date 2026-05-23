@@ -232,6 +232,15 @@ Riferimento testuale opzionale a un ticket in un sistema esterno (es. `JIRA-1234
 **Topic**
 Canale di messaggistica su un Kafka Cluster. Le DLQ sono topic Kafka dedicati ai messaggi falliti.
 
+**Topic Browser**
+Funzionalità che, data una configurazione di un Kafka Cluster, interroga il broker in tempo reale e restituisce la lista dei topic disponibili. Il Topic Browser esclude i topic interni del broker (quelli il cui nome inizia con `_`) e i topic già configurati come DLQ Config sullo stesso cluster. Usato per assistere l'ADMIN nella selezione del Topic Name durante la creazione di una DLQ Config.
+
+**Topic Name**
+Il nome esatto di un topic Kafka configurato come DLQ in una DLQ Config. Immutabile dopo la creazione della DLQ Config. Il Topic Browser suggerisce nomi validi durante la creazione.
+
+**Problem Detail**
+Formato standard di risposta per gli errori HTTP, definito da RFC 7807 (`application/problem+json`). Ogni risposta di errore dell'API include almeno: `type` (URI), `title`, `status`, `detail`. Le risposte con errori di validazione (HTTP 422) aggiungono un array `violations` con le violazioni per campo: `[{ "field": "...", "message": "..." }]`.
+
 ---
 
 ## U

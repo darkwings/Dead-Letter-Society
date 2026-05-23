@@ -84,6 +84,40 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 
 **[DLQCFG-005]** The system shall allow ADMIN to set an explicit Replay Topic override on a DLQ Config.
 
+**[DLQCFG-006]** The system shall allow ADMIN to edit all fields of an existing DLQ Config — display name, Fetch Mode, Cron Expression, Batch Size, Retention Policy — except Topic Name, which is immutable after creation.
+
+**[DLQCFG-007]** When ADMIN saves an edited DLQ Config, the system shall persist the updated configuration and navigate to the DLQ Config list, refreshing the displayed data.
+
+**[DLQCFG-008]** When ADMIN edits a DLQ Config, the system shall display the Topic Name as a read-only field.
+
+**[DLQCFG-009]** If ADMIN changes Fetch Mode from `SCHEDULED` to `ON_DEMAND` or vice versa, the system shall preserve the Committed Offsets and Partition Offset records without modification.
+
+**[DLQCFG-010]** If a DLQ Config update request contains validation errors, then the system shall return HTTP 422 Problem Detail with a `violations` array identifying each invalid field and the reason.
+
+**[DLQCFG-011]** When ADMIN saves a DLQ Config (create or edit), if the response contains field-level `violations`, the system shall highlight the corresponding form fields and display the error message inline below each field.
+
+---
+
+## 3b. Topic Browser
+
+**[TOPIC-001]** The system shall expose `GET /api/clusters/{id}/topics` returning the list of Available Topics on the cluster's broker, filtered to exclude internal topics (those whose name starts with `_`).
+
+**[TOPIC-002]** The system shall exclude from the Topic Browser results any topic already configured as a DLQ Config on the same Kafka Cluster.
+
+**[TOPIC-003]** The system shall return Topic Browser results sorted alphabetically.
+
+**[TOPIC-004]** When ADMIN opens the DLQ Config creation form, the system shall fetch the Available Topics list and populate the Topic Name combobox with the results.
+
+**[TOPIC-005]** The system shall display Topic Browser suggestions in the combobox only when the user has typed at least 2 characters.
+
+**[TOPIC-006]** The system shall allow the user to select a Topic Name from the suggestions or to type a name not present in the list (free-text entry).
+
+**[TOPIC-007]** When the user enters a Topic Name not present in the Available Topics list, the system shall display an inline warning: the topic does not exist yet on the broker and no messages will be fetched until it is created.
+
+**[TOPIC-008]** If the Topic Browser request fails (broker unreachable, authentication error), then the system shall display an error message below the Topic Name field and allow the user to continue with manual free-text entry.
+
+**[TOPIC-009]** If the Topic Browser request fails, then the system shall not block form submission — the user can still save a DLQ Config with a manually entered Topic Name.
+
 ---
 
 ## 4. Fetch (Message Ingestion)
@@ -186,7 +220,23 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 
 ---
 
-## 9. Sicurezza
+## 9. API Error Format
+
+**[API-001]** The system shall return all error responses with `Content-Type: application/problem+json` and a body conforming to RFC 7807, containing at minimum: `type`, `title`, `status`, `detail`.
+
+**[API-002]** The system shall use the following `type` URI convention: `https://dls.io/problems/{code}` where `code` is a machine-readable identifier (e.g., `validation`, `not-found`, `conflict`, `forbidden`).
+
+**[API-003]** If an API request results in a validation error (HTTP 422), then the system shall include in the Problem Detail body a `violations` array where each entry has `field` (JSON path of the invalid field) and `message` (human-readable reason).
+
+**[API-004]** The system shall return HTTP 404 with Problem Detail for any resource not found.
+
+**[API-005]** The system shall return HTTP 409 with Problem Detail for conflict conditions (e.g., duplicate email, fetch already in progress).
+
+**[API-006]** The system shall return HTTP 403 with Problem Detail for authorization failures, including in `detail` the minimum required role.
+
+---
+
+## 11. Sicurezza
 
 **[SEC-001]** The system shall not store plaintext Kafka credentials in the database.
 
@@ -208,7 +258,7 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 
 ---
 
-## 11. Sviluppo locale
+## 12. Sviluppo locale
 
 **[DEV-001]** The system shall support local development using Quarkus Dev Services, which automatically provisions PostgreSQL, Kafka, and Confluent Schema Registry via Testcontainers/OrbStack without manual configuration.
 
@@ -240,6 +290,9 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 | AUTH-003 ~ AUTH-007 | Autenticazione standalone | PostgreSQL |
 | AUTH-008 ~ AUTH-011 | Autenticazione OIDC | Keycloak (Testcontainers) |
 | RETENTION-001, RETENTION-002 | Retention job | PostgreSQL |
+| TOPIC-001 ~ TOPIC-003 | Topic Browser: filtra interni + già configurati + ordine | Kafka |
+| DLQCFG-006 ~ DLQCFG-010 | Edit DLQ Config: aggiorna campi, immutabilità topicName, validazione | PostgreSQL |
+| API-001 ~ API-006 | Tutti gli endpoint restituiscono problem+json per ogni categoria di errore | PostgreSQL |
 | SEC-001, SEC-002 | Encryption at rest | PostgreSQL |
 
 ### E2E Tests — Playwright
@@ -253,6 +306,11 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 | AUTH-012 | Pulsanti non visibili per azioni non autorizzate (VIEWER non vede replay) | `e2e/auth/rbac-ui.spec.ts` |
 | CLUSTER-001, CLUSTER-003 | Crea Kafka Cluster con SR irraggiungibile → errore bloccante | `e2e/cluster/create-cluster.spec.ts` |
 | DLQCFG-001 ~ DLQCFG-003 | Crea DLQ Config con cron preset + custom | `e2e/dlqconfig/create-dlqconfig.spec.ts` |
+| DLQCFG-006 ~ DLQCFG-009 | Modifica DLQ Config → salva → torna a lista | `e2e/dlqconfig/edit-dlqconfig.spec.ts` |
+| DLQCFG-010, DLQCFG-011 | Errore validazione campo → highlight inline | `e2e/dlqconfig/edit-dlqconfig.spec.ts` |
+| TOPIC-004 ~ TOPIC-007 | Topic Browser: combobox, ≥2 chars, selezione, warning topic inesistente | `e2e/dlqconfig/topic-browser.spec.ts` |
+| TOPIC-008, TOPIC-009 | Topic Browser: broker irraggiungibile → errore inline, form ancora inviabile | `e2e/dlqconfig/topic-browser.spec.ts` |
+| API-001 ~ API-003 | Risposte errore in application/problem+json con violations | `e2e/api/problem-json.spec.ts` |
 | FETCH-007, FETCH-009 | Fetch on-demand → badge aggiornato + lista refresh | `e2e/fetch/on-demand-fetch.spec.ts` |
 | FETCH-010 | On-demand fetch bloccato → toast "Fetch in corso" | `e2e/fetch/fetch-blocked.spec.ts` |
 | MSG-001, MSG-002 | Filtri lista messaggi (stato, timestamp, partition) | `e2e/messages/filter-messages.spec.ts` |

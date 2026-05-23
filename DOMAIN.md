@@ -17,6 +17,8 @@ Gestione delle configurazioni dei cluster Kafka e delle relative DLQ. Responsabi
 - Registrazione e configurazione di `KafkaCluster`
 - Configurazione di `SchemaRegistry` (uno per cluster)
 - Creazione e gestione di `DlqConfig`
+- Modifica di `DlqConfig` (tutti i campi eccetto `topicName`, che è immutabile dopo la creazione)
+- Topic Browser: enumerazione live dei topic disponibili su un Kafka Cluster per assistere nella selezione del `topicName`
 - Assegnazione di utenti a `DlqConfig` con ruoli
 
 ### 2. Identity & Access
