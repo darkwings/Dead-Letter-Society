@@ -2,6 +2,7 @@ package it.dls.infrastructure.api.auth;
 
 import it.dls.application.identity.RegisterAdminUseCase;
 import it.dls.domain.user.UserRepository;
+import it.dls.infrastructure.api.ProblemDetail;
 import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -37,14 +38,10 @@ public class SetupResource {
         if (req == null || req.email() == null || req.email().isBlank()
                 || req.displayName() == null || req.displayName().isBlank()
                 || req.password() == null || req.password().isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse("INVALID_REQUEST", "email, displayName and password are required"))
-                .build();
+            return ProblemDetail.badRequest("email, displayName and password are required").toResponse();
         }
         if (userRepository.existsAny()) {
-            return Response.status(Response.Status.CONFLICT)
-                .entity(new ErrorResponse("SETUP_ALREADY_DONE", "Setup already completed"))
-                .build();
+            return ProblemDetail.conflict("Setup already completed").toResponse();
         }
         var user = registerAdmin.registerFirstAdmin(req.email(), req.displayName(), req.password());
         return Response.status(Response.Status.CREATED)

@@ -87,6 +87,21 @@ public class DlqConfig {
 
     public void setDefaultReplayTopic(String topic) { this.defaultReplayTopic = topic; }
 
+    public void update(String displayName, FetchConfig fetchConfig, RetentionPolicy retentionPolicy,
+                       UUID schemaRegistryId, String defaultReplayTopic) {
+        if (displayName == null || displayName.isBlank())
+            throw new IllegalArgumentException("displayName must not be blank");
+        if (fetchConfig == null)
+            throw new IllegalArgumentException("fetchConfig must not be null");
+        if (retentionPolicy == null)
+            throw new IllegalArgumentException("retentionPolicy must not be null");
+        this.displayName = displayName;
+        this.fetchConfig = fetchConfig;
+        this.retentionPolicy = retentionPolicy;
+        this.schemaRegistryId = schemaRegistryId;
+        this.defaultReplayTopic = defaultReplayTopic;
+    }
+
     public UUID getId() { return id; }
     public UUID getClusterId() { return clusterId; }
     public String getTopicName() { return topicName; }

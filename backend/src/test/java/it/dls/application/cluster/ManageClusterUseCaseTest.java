@@ -1,10 +1,12 @@
 package it.dls.application.cluster;
 
 import it.dls.domain.cluster.*;
+import it.dls.domain.dlqconfig.DlqConfigRepository;
 import it.dls.domain.shared.EncryptionPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,6 +17,7 @@ import static org.mockito.Mockito.*;
 class ManageClusterUseCaseTest {
 
     KafkaClusterRepository repo;
+    DlqConfigRepository dlqConfigRepo;
     ConnectivityValidationPort connectivity;
     EncryptionPort encryption;
     ManageClusterUseCase useCase;
@@ -22,9 +25,11 @@ class ManageClusterUseCaseTest {
     @BeforeEach
     void setUp() {
         repo = mock(KafkaClusterRepository.class);
+        dlqConfigRepo = mock(DlqConfigRepository.class);
         connectivity = mock(ConnectivityValidationPort.class);
         encryption = mock(EncryptionPort.class);
-        useCase = new ManageClusterUseCase(repo, connectivity, encryption);
+        useCase = new ManageClusterUseCase(repo, dlqConfigRepo, connectivity, encryption);
+        when(dlqConfigRepo.findByClusterId(any())).thenReturn(List.of());
         when(encryption.encrypt(anyString())).thenAnswer(i -> "enc-" + i.getArgument(0));
         when(connectivity.testKafka(any(), any())).thenReturn(ConnectivityResult.ok());
         when(connectivity.testSchemaRegistry(any(), any())).thenReturn(ConnectivityResult.ok());

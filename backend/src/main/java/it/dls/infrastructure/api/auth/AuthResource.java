@@ -6,6 +6,7 @@ import it.dls.application.identity.LoginUseCase;
 import it.dls.application.identity.RegisterAdminUseCase;
 import it.dls.domain.user.User;
 import it.dls.domain.user.UserRepository;
+import it.dls.infrastructure.api.ProblemDetail;
 import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -36,18 +37,15 @@ public class AuthResource {
     public Response login(LoginRequest req) {
         if (req == null || req.email() == null || req.email().isBlank()
                 || req.password() == null || req.password().isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(new ErrorResponse("INVALID_REQUEST", "email and password are required"))
-                    .build();
+            return ProblemDetail.badRequest("email and password are required").toResponse();
         }
         var result = loginUseCase.login(req.email(), req.password());
         if (result.isFailure()) {
-            var status = result.failureReason() == LoginFailure.ACCOUNT_LOCKED
-                ? Response.Status.FORBIDDEN
-                : Response.Status.UNAUTHORIZED;
-            return Response.status(status)
-                .entity(new ErrorResponse(result.failureReason().name(), result.failureReason().name()))
-                .build();
+            var status = result.failureReason() == LoginFailure.ACCOUNT_LOCKED ? 403 : 401;
+            return ProblemDetail.of(status,
+                result.failureReason().name().toLowerCase().replace('_', '-'),
+                result.failureReason().name(),
+                result.failureReason().name()).toResponse();
         }
         User user = result.getUser();
         String token = Jwt.issuer("https://dls.io")
@@ -67,7 +65,7 @@ public class AuthResource {
         UUID id = UUID.fromString(jwt.getSubject());
         return userRepository.findById(id)
                 .map(u -> Response.ok(UserResponse.from(u)).build())
-                .orElse(Response.status(Response.Status.UNAUTHORIZED).build());
+                .orElse(ProblemDetail.unauthorized("User not found").toResponse());
     }
 
     @GET
@@ -87,17 +85,13 @@ public class AuthResource {
         if (req == null || req.email() == null || req.email().isBlank()
                 || req.displayName() == null || req.displayName().isBlank()
                 || req.password() == null || req.password().isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse("INVALID_REQUEST", "email, displayName and password are required"))
-                .build();
+            return ProblemDetail.badRequest("email, displayName and password are required").toResponse();
         }
         try {
             var user = registerAdmin.createUser(req.email(), req.displayName(), req.password());
             return Response.status(Response.Status.CREATED).entity(UserResponse.from(user)).build();
         } catch (IllegalStateException e) {
-            return Response.status(Response.Status.CONFLICT)
-                .entity(new ErrorResponse("DUPLICATE_EMAIL", e.getMessage()))
-                .build();
+            return ProblemDetail.conflict(e.getMessage()).toResponse();
         }
     }
 }

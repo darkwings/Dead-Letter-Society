@@ -17,6 +17,7 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -54,6 +55,19 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
             return ConnectivityResult.fail("HTTP " + status);
         } catch (Exception e) {
             return ConnectivityResult.fail(e.getMessage());
+        }
+    }
+
+    @Override
+    public List<String> listTopics(String bootstrapServers, KafkaSecurityConfig security) {
+        var props = buildKafkaProperties(bootstrapServers, security);
+        props.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "5000");
+        props.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, "5000");
+        try (var admin = AdminClient.create(props)) {
+            var names = admin.listTopics().names().get(5, TimeUnit.SECONDS);
+            return names.stream().filter(n -> !n.startsWith("_")).sorted().toList();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to list topics: " + e.getMessage(), e);
         }
     }
 

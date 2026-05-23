@@ -1,26 +1,33 @@
 package it.dls.application.cluster;
 
 import it.dls.domain.cluster.*;
+import it.dls.domain.dlqconfig.DlqConfig;
+import it.dls.domain.dlqconfig.DlqConfigRepository;
 import it.dls.domain.shared.EncryptionPort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ManageClusterUseCase {
 
     private final KafkaClusterRepository clusterRepo;
+    private final DlqConfigRepository dlqConfigRepo;
     private final ConnectivityValidationPort connectivity;
     private final EncryptionPort encryption;
 
     @Inject
     public ManageClusterUseCase(KafkaClusterRepository clusterRepo,
+                                DlqConfigRepository dlqConfigRepo,
                                 ConnectivityValidationPort connectivity,
                                 EncryptionPort encryption) {
         this.clusterRepo = clusterRepo;
+        this.dlqConfigRepo = dlqConfigRepo;
         this.connectivity = connectivity;
         this.encryption = encryption;
     }
@@ -59,6 +66,27 @@ public class ManageClusterUseCase {
         clusterRepo.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Cluster not found: " + id));
         clusterRepo.delete(id);
+    }
+
+    @Transactional(Transactional.TxType.SUPPORTS)
+    public List<String> listTopics(UUID clusterId) {
+        var cluster = clusterRepo.findById(clusterId)
+            .orElseThrow(() -> new IllegalArgumentException("Cluster not found: " + clusterId));
+        var decryptedSecurity = decryptSecurity(cluster.getSecurityConfig());
+        var all = connectivity.listTopics(cluster.getBootstrapServers(), decryptedSecurity);
+        Set<String> configured = dlqConfigRepo.findByClusterId(clusterId).stream()
+            .map(DlqConfig::getTopicName)
+            .collect(Collectors.toSet());
+        return all.stream().filter(t -> !configured.contains(t)).toList();
+    }
+
+    private KafkaSecurityConfig decryptSecurity(KafkaSecurityConfig enc) {
+        return new KafkaSecurityConfig(
+            enc.protocol(),
+            enc.encryptedUsername() != null ? encryption.decrypt(enc.encryptedUsername()) : null,
+            enc.encryptedPassword() != null ? encryption.decrypt(enc.encryptedPassword()) : null,
+            enc.encryptedKeystorePem() != null ? encryption.decrypt(enc.encryptedKeystorePem()) : null
+        );
     }
 
     private KafkaSecurityConfig buildSecurityConfig(RegisterClusterCommand cmd) {
