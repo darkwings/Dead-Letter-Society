@@ -83,13 +83,22 @@ test('metadata grid shows partition, offset, Kafka timestamp, and ingested at', 
   await expect(page.getByText('42', { exact: true })).toBeVisible() // offset
 })
 
-test('message not found shows error state', async ({ page }) => {
+// MSG-005: 404 shows toast and redirects to messages list
+test('message 404 shows toast and redirects to messages list', async ({ page }) => {
   await page.route(`/api/messages/${MSG_ID}`, (route) =>
-    route.fulfill({ status: 404, json: { code: 'NOT_FOUND', message: 'not found' } })
+    route.fulfill({ status: 404, json: { detail: 'not found' } })
+  )
+  await page.route('/api/messages*', (route) =>
+    route.fulfill({ json: { messages: [], total: 0, page: 0, size: 50 } })
+  )
+  await page.route('/api/events*', (route) =>
+    route.fulfill({
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+      body: '',
+    })
   )
   await page.goto(`/messages/${MSG_ID}`)
-  await expect(page.getByTestId('message-unavailable')).toHaveText(
-    'Message no longer available.'
-  )
-  await expect(page.getByRole('link', { name: 'Back to list' })).toBeVisible()
+  await expect(page.getByText('Message no longer available.')).toBeVisible()
+  await expect(page).toHaveURL(/\/messages$/)
 })

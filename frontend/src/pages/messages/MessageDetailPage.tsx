@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useCallback, useEffect } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import NoteThread from '@/components/NoteThread'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -27,6 +27,7 @@ interface MessageDetail {
 export default function MessageDetailPage() {
   const { messageId } = useParams<{ messageId: string }>()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [showReplay, setShowReplay] = useState(false)
 
   const { data: msg, isLoading, error } = useQuery({
@@ -47,6 +48,13 @@ export default function MessageDetailPage() {
     [messageId, queryClient],
   )
   useSSE(onSseEvent)
+
+  useEffect(() => {
+    if (error && (error as { status?: number }).status === 404) {
+      toast.error('Message no longer available.')
+      navigate('..', { relative: 'path' })
+    }
+  }, [error, navigate])
 
   const statusMutation = useMutation({
     mutationFn: (status: string) =>
@@ -70,11 +78,10 @@ export default function MessageDetailPage() {
   }
 
   if (error || !msg) {
-    const is404 = error && (error as { status?: number }).status === 404
     return (
       <div style={{ padding: 32 }}>
         <p className="t-small" style={{ color: 'hsl(var(--destructive))' }} data-testid="message-unavailable">
-          {is404 ? 'Message no longer available.' : 'Message not found.'}
+          Message not found.
         </p>
         <Link to=".." relative="path" style={{ fontSize: 12, color: 'hsl(var(--primary))', textDecoration: 'none', display: 'block', marginTop: 8 }}>
           Back to list

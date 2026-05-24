@@ -51,7 +51,9 @@ Frontend: React + Vite + TypeScript, TanStack Query, Zustand auth store, Tailwin
 | 4 — Message Inspection | ✅ | List/filter/detail, status transitions |
 | 5 — Note Thread | ✅ | Notes with SSE real-time broadcast |
 | 6 — Replay | ✅ | ReplayWizard, KafkaProducerPort, audit records |
-| 7 — Retention & SSE Frontend | pending | |
+| 7 — Retention & SSE Frontend | ✅ | RetentionJob, RetentionJobIT, MSG-005 redirect |
+| 8 — UI Fidelity | ✅ | Dashboard, bulk replay, settings, side filters, all messages |
+| 9 — E2E Coverage | ✅ | 11 Playwright specs completing EVALUATION.md coverage |
 
 ## Key Technical Decisions
 
