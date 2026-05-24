@@ -34,6 +34,20 @@ test.beforeEach(async ({ page }) => {
   )
 })
 
+// REPLAY-002: visual stepper bar shows all 3 step labels
+test('replay wizard shows a 3-step stepper bar', async ({ page }) => {
+  await page.route(`/api/messages/${MSG_ID}`, (route: Route) =>
+    route.fulfill({ json: baseMessage })
+  )
+  await page.goto(`/messages/${MSG_ID}`)
+  await page.getByTestId('replay-button').click()
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText('1. Select Topic')).toBeVisible()
+  await expect(dialog.getByText('2. Edit Payload')).toBeVisible()
+  await expect(dialog.getByText('3. Confirm')).toBeVisible()
+})
+
 test('replay wizard completes successfully', async ({ page }) => {
   let currentStatus = 'NEW'
   await page.route(`/api/messages/${MSG_ID}`, (route: Route) =>

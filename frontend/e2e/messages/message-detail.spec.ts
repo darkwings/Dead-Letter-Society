@@ -71,6 +71,18 @@ test('discard button sends DISCARDED status', async ({ page }) => {
   expect(sentStatus).toBe('DISCARDED')
 })
 
+// MSG-008: 4-column metadata grid (partition, offset, Kafka timestamp, ingested at)
+test('metadata grid shows partition, offset, Kafka timestamp, and ingested at', async ({ page }) => {
+  await page.goto(`/messages/${MSG_ID}`)
+  await expect(page.getByText('Partition')).toBeVisible()
+  await expect(page.getByText('Offset')).toBeVisible()
+  await expect(page.getByText('Kafka Timestamp')).toBeVisible()
+  await expect(page.getByText('Ingested At')).toBeVisible()
+  // Values rendered
+  await expect(page.getByText('0', { exact: true })).toBeVisible()  // partition
+  await expect(page.getByText('42', { exact: true })).toBeVisible() // offset
+})
+
 test('message not found shows error state', async ({ page }) => {
   await page.route(`/api/messages/${MSG_ID}`, (route) =>
     route.fulfill({ status: 404, json: { code: 'NOT_FOUND', message: 'not found' } })
