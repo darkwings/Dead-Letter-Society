@@ -7,6 +7,17 @@ import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
 import TopicCombobox from '@/components/TopicCombobox'
 
+interface DlqConfigResponse {
+  id: string
+  clusterId: string
+  topicName: string
+  displayName: string
+  downloadMode: string
+  batchSize: number
+  retentionType: string
+  retentionValue: number
+}
+
 const schema = z.object({
   topicName: z.string().min(1, 'Topic name required'),
   displayName: z.string().min(1, 'Display name required'),
@@ -37,12 +48,12 @@ export default function CreateDlqConfigPage() {
 
   const mutation = useMutation({
     mutationFn: (data: FormValues) =>
-      apiFetch(`/api/clusters/${clusterId}/dlq-configs`, {
+      apiFetch<DlqConfigResponse>(`/api/clusters/${clusterId}/dlq-configs`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dlq-configs', clusterId] })
+    onSuccess: (newConfig) => {
+      queryClient.setQueryData<DlqConfigResponse[]>(['dlq-configs', clusterId], (old = []) => [...old, newConfig])
       toast.success('DLQ config created')
       navigate(`/clusters/${clusterId}/dlq-configs`)
     },
@@ -53,7 +64,7 @@ export default function CreateDlqConfigPage() {
   })
 
   return (
-    <div style={{ padding: 32, maxWidth: 480 }}>
+    <div style={{ padding: 32, maxWidth: 480, margin: '0 auto' }}>
       <h1 className="t-h1" style={{ marginBottom: 24 }}>Add DLQ Config</h1>
 
       <div className="card" style={{ padding: 24 }}>

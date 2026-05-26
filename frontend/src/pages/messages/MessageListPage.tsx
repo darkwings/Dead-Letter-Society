@@ -29,6 +29,7 @@ interface MessagePageResponse {
 
 interface DlqConfigDetail {
   id: string
+  clusterId: string
   displayName: string
   defaultReplayTopic: string | null
 }
@@ -247,8 +248,16 @@ export default function MessageListPage() {
       {/* Main content */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h1 className="t-h1">Messages</h1>
+          <h1 className="t-h1">{configData?.displayName ?? 'Messages'}</h1>
           <div style={{ display: 'flex', gap: 8 }}>
+            {isOperator && configData?.clusterId && (
+              <Link
+                to={`/clusters/${configData.clusterId}/dlq-configs/${configId}/edit`}
+                className="btn btn-secondary"
+              >
+                Edit Config
+              </Link>
+            )}
             {isOperator && selectedIds.size > 0 && (
               <button
                 className="btn btn-primary"

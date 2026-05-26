@@ -99,7 +99,7 @@ export default function EditDlqConfigPage() {
   }
 
   return (
-    <div style={{ padding: 32, maxWidth: 480 }}>
+    <div style={{ padding: 32, maxWidth: 480, margin: '0 auto' }}>
       <h1 className="t-h1" style={{ marginBottom: 24 }}>Edit DLQ Config</h1>
 
       <div className="card" style={{ padding: 24 }}>

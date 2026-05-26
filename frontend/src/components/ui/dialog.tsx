@@ -9,13 +9,25 @@ interface DialogProps {
 export function Dialog({ open, onClose, children }: DialogProps) {
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 50,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
       <div
-        className="fixed inset-0 bg-black/50"
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)' }}
         onClick={onClose}
         aria-hidden="true"
       />
-      <div role="dialog" className="card-elevated relative z-10 shadow-lg w-full max-w-lg mx-4 p-6" style={{ borderRadius: 'var(--radius-lg)' }}>
+      <div
+        role="dialog"
+        className="card-elevated"
+        style={{
+          position: 'relative', zIndex: 10,
+          width: '100%', maxWidth: 560, margin: '0 16px',
+          padding: 24, borderRadius: 'var(--radius-lg)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        }}
+      >
         {children}
       </div>
     </div>

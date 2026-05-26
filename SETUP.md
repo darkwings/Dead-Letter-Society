@@ -67,14 +67,14 @@ Redpanda ships with `rpk` (Redpanda CLI). Use it to create a topic and publish m
 
 ```bash
 docker compose -f docker/docker-compose.dev.yml exec redpanda \
-  rpk topic create my-service.DLQ --partitions 1
+  rpk topic create my-service.dlq --partitions 1
 ```
 
 ### Produce a plain JSON message
 
 ```bash
 docker compose -f docker/docker-compose.dev.yml exec redpanda \
-  rpk topic produce my-service.DLQ --key order-123 <<'EOF'
+  rpk topic produce my-service.dlq --key order-123 <<'EOF'
 {"orderId":"order-123","status":"FAILED","reason":"payment_timeout"}
 EOF
 ```
@@ -85,14 +85,14 @@ Create `messages.txt` with one JSON payload per line, then:
 
 ```bash
 docker compose -f docker/docker-compose.dev.yml exec -T redpanda \
-  rpk topic produce my-service.DLQ < messages.txt
+  rpk topic produce my-service.dlq < messages.txt
 ```
 
 ### Produce with custom headers
 
 ```bash
 docker compose -f docker/docker-compose.dev.yml exec redpanda \
-  rpk topic produce my-service.DLQ \
+  rpk topic produce my-service.dlq \
   --header x-original-topic=my-service.events \
   --header x-correlation-id=abc-123 \
   --key order-123 <<'EOF'
@@ -106,14 +106,86 @@ EOF
 
 ```bash
 docker compose -f docker/docker-compose.dev.yml exec redpanda \
-  rpk topic consume my-service.DLQ --offset start --num 10
+  rpk topic consume my-service.dlq --offset start --num 10
 ```
 
 ### Ingest into DLS
 
 1. In DLS, create a cluster pointing to `localhost:9092` (PLAINTEXT).
-2. Add a DLQ Config for the topic `my-service.DLQ`.
+2. Add a DLQ Config for the topic `my-service.dlq`.
 3. Click **Fetch now** on the messages page to pull the messages in.
+
+---
+
+## Producing Schema-Encoded Messages
+
+Redpanda's Schema Registry runs on `http://localhost:8081`. DLS decodes messages using the schema ID embedded in the Confluent wire format (`0x00` + 4-byte schema ID + payload).
+
+Subject naming follows **TopicNameStrategy**: `<topic>-value` for the value schema, `<topic>-key` for the key.
+
+### Register a JSON Schema
+
+```bash
+curl -s -X POST http://localhost:8081/subjects/my-service.dlq-value/versions \
+  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  -d '{
+    "schemaType": "JSON",
+    "schema": "{\"type\":\"object\",\"properties\":{\"orderId\":{\"type\":\"string\"},\"status\":{\"type\":\"string\"},\"reason\":{\"type\":\"string\"}},\"required\":[\"orderId\",\"status\"]}"
+  }'
+```
+
+Response returns the schema ID: `{"id":1}`
+
+### Register an Avro Schema
+
+```bash
+curl -s -X POST http://localhost:8081/subjects/my-service.dlq-value/versions \
+  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  -d '{
+    "schema": "{\"type\":\"record\",\"name\":\"FailedEvent\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"orderId\",\"type\":\"string\"},{\"name\":\"status\",\"type\":\"string\"},{\"name\":\"reason\",\"type\":\"string\"}]}"
+  }'
+```
+
+### List registered subjects and inspect a schema
+
+```bash
+# List all subjects
+curl -s http://localhost:8081/subjects
+
+# Get schema by ID
+curl -s http://localhost:8081/schemas/ids/1
+
+# List versions for a subject
+curl -s http://localhost:8081/subjects/my-service.dlq-value/versions
+
+# Get latest version of a subject
+curl -s http://localhost:8081/subjects/my-service.dlq-value/versions/latest
+```
+
+### Produce a schema-encoded message with rpk
+
+`rpk` can encode the value using the Schema Registry automatically. It will embed the schema ID in the Confluent wire format.
+
+```bash
+echo '{"orderId":"order-123","status":"FAILED","reason":"payment_timeout"}' | \
+  docker compose -f docker/docker-compose.dev.yml exec -T redpanda \
+  rpk topic produce my-service.dlq \
+  --schema-id=topic \
+  -X registry.hosts=localhost:8081 \
+  --key order-123 \
+  --header x-original-topic=my-service.events \
+  --header x-correlation-id=abc-123
+```
+
+> **Note:** `--schema-id=topic` uses TopicNameStrategy — rpk looks up the latest schema for subject `my-service.dlq-value` and encodes the value in Confluent wire format (magic byte + schema ID + payload). The schema must be registered first.
+
+### Configure DLS to use the Schema Registry
+
+When creating a DLQ Config cluster in DLS, set:
+- **Schema Registry URL:** `http://localhost:8081`
+- Leave auth fields empty for local dev (no authentication required)
+
+DLS will use the schema ID in each message to fetch and decode the payload via the configured Schema Registry.
 
 ---
 

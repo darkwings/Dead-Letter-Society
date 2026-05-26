@@ -4,7 +4,7 @@ export default function SettingsGeneralPage() {
   const { theme, toggle } = useTheme()
 
   return (
-    <div style={{ maxWidth: 480 }}>
+    <div style={{ maxWidth: 480, margin: '0 auto' }}>
       <h1 className="t-h1" style={{ marginBottom: 24 }}>General</h1>
       <div className="card" style={{ padding: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

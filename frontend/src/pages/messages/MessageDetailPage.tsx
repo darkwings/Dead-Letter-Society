@@ -8,6 +8,11 @@ import { useSSE } from '@/hooks/useSSE'
 import { StatusBadge } from '@/components/StatusBadge'
 import ReplayWizard from './ReplayWizard'
 
+interface DlqConfigSummary {
+  id: string
+  displayName: string
+}
+
 interface MessageDetail {
   id: string
   dlqConfigId: string
@@ -34,6 +39,12 @@ export default function MessageDetailPage() {
     queryKey: ['message', messageId],
     queryFn: () => apiFetch<MessageDetail>(`/api/messages/${messageId}`),
     enabled: !!messageId,
+  })
+
+  const { data: config } = useQuery({
+    queryKey: ['dlq-config', msg?.dlqConfigId],
+    queryFn: () => apiFetch<DlqConfigSummary>(`/api/dlq-configs/${msg!.dlqConfigId}`),
+    enabled: !!msg?.dlqConfigId,
   })
 
   const onSseEvent = useCallback(
@@ -94,6 +105,16 @@ export default function MessageDetailPage() {
 
   return (
     <div style={{ padding: 32, maxWidth: 900 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'hsl(var(--muted-foreground))', marginBottom: 16 }}>
+        <Link
+          to={msg?.dlqConfigId ? `/dlq-configs/${msg.dlqConfigId}/messages` : '..'}
+          style={{ textDecoration: 'none', color: 'hsl(var(--muted-foreground))' }}
+        >
+          {config?.displayName ?? 'Messages'}
+        </Link>
+        <span>/</span>
+        <span style={{ color: 'hsl(var(--foreground))' }}>Message Detail</span>
+      </div>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <h1 className="t-h1" style={{ marginBottom: 4 }}>Message Detail</h1>
