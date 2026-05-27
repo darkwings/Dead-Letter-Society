@@ -73,8 +73,25 @@ export default function MessageDetailPage() {
         method: 'PUT',
         body: JSON.stringify({ status }),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['message', messageId] })
+    onSuccess: (updatedMsg) => {
+      // update detail cache immediately
+      queryClient.setQueryData(['message', messageId], updatedMsg)
+
+      // patch the new status in-place in list caches so navigating back shows
+      // the correct status without waiting for a background refetch
+      const patchStatus = (old: unknown) => {
+        if (!old || typeof old !== 'object') return old
+        const paged = old as { messages: Array<{ id: string; status: string }>; total: number; page: number; size: number }
+        return {
+          ...paged,
+          messages: paged.messages.map((m) =>
+            m.id === messageId ? { ...m, status: updatedMsg.status } : m
+          ),
+        }
+      }
+      queryClient.setQueriesData({ queryKey: ['messages', msg?.dlqConfigId] }, patchStatus)
+      queryClient.setQueriesData({ queryKey: ['all-messages'] }, patchStatus)
+
       toast.success('Status updated')
     },
     onError: (e: Error) => toast.error(e.message),

@@ -93,6 +93,16 @@ public class DlqConfigRepositoryAdapter implements DlqConfigRepository {
 
     @Override
     @Transactional(Transactional.TxType.SUPPORTS)
+    public List<DlqConfig> findByUserId(UUID userId) {
+        return DlqConfigEntity
+            .<DlqConfigEntity>find(
+                "SELECT DISTINCT d FROM DlqConfigEntity d JOIN d.assignments a WHERE a.userId = ?1",
+                userId)
+            .stream().map(DlqConfigEntity::toDomain).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(Transactional.TxType.SUPPORTS)
     public List<DlqConfig> findAllWithScheduledFetch() {
         return DlqConfigEntity.<DlqConfigEntity>find(
                 "downloadMode IN ?1",

@@ -11,6 +11,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -23,6 +24,15 @@ public class DlqConfigResource {
     @Inject ManageDlqConfigUseCase manageDlqConfig;
     @Inject FetchMessagesUseCase fetchMessages;
     @Inject JsonWebToken jwt;
+
+    @GET
+    @Path("/my")
+    public List<DlqConfigResponse> listForCurrentUser() {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        return manageDlqConfig.listForUser(userId).stream()
+            .map(DlqConfigResponse::from)
+            .toList();
+    }
 
     @GET
     @Path("/{id}")
@@ -56,6 +66,18 @@ public class DlqConfigResource {
         }
         try {
             manageDlqConfig.assignUser(id, req.userId(), req.role());
+            return Response.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
+        }
+    }
+
+    @DELETE
+    @Path("/{id}/users/{userId}")
+    @RolesAllowed("ADMIN")
+    public Response revokeUser(@PathParam("id") UUID id, @PathParam("userId") UUID userId) {
+        try {
+            manageDlqConfig.revokeUser(id, userId);
             return Response.noContent().build();
         } catch (IllegalArgumentException e) {
             return ProblemDetail.notFound(e.getMessage()).toResponse();

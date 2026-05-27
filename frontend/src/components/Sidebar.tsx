@@ -140,6 +140,52 @@ function ClusterNavItem({ cluster, defaultExpanded }: { cluster: ClusterResponse
   )
 }
 
+interface MyDlqConfig {
+  id: string
+  displayName: string
+}
+
+function UserDlqNav() {
+  const location = useLocation()
+  const { data: configs = [], isLoading } = useQuery({
+    queryKey: ['my-dlq-configs'],
+    queryFn: () => apiFetch<MyDlqConfig[]>('/api/dlq-configs/my'),
+  })
+
+  if (isLoading) {
+    return <span style={{ display: 'block', padding: '4px 10px', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Loading…</span>
+  }
+  if (configs.length === 0) {
+    return <span style={{ display: 'block', padding: '4px 10px', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>No DLQ configs assigned yet.</span>
+  }
+  return (
+    <>
+      {configs.map((cfg) => {
+        const active = location.pathname.startsWith(`/dlq-configs/${cfg.id}`)
+        return (
+          <Link
+            key={cfg.id}
+            to={`/dlq-configs/${cfg.id}/messages`}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '5px 10px', fontSize: 12.5, fontWeight: 500,
+              textDecoration: 'none',
+              color: active ? 'hsl(var(--accent-foreground))' : 'hsl(var(--foreground))',
+              background: active ? 'hsl(var(--accent))' : 'transparent',
+              borderRadius: 'var(--radius)',
+            }}
+          >
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {cfg.displayName}
+            </span>
+            <DlqBadge configId={cfg.id} />
+          </Link>
+        )
+      })}
+    </>
+  )
+}
+
 export default function Sidebar() {
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
@@ -149,6 +195,7 @@ export default function Sidebar() {
   const { data: clusters = [], isLoading } = useQuery({
     queryKey: ['clusters'],
     queryFn: () => apiFetch<ClusterResponse[]>('/api/clusters'),
+    enabled: isAdmin,
   })
 
   const onSseEvent = useCallback(
@@ -169,7 +216,7 @@ export default function Sidebar() {
   useSSE(onSseEvent)
 
   const globalNav = [
-    { to: isAdmin ? '/dashboard' : '/clusters', label: 'Overview' },
+    { to: isAdmin ? '/dashboard' : '/messages', label: 'Overview' },
     { to: '/messages', label: 'All Messages' },
   ]
 
@@ -206,18 +253,22 @@ export default function Sidebar() {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 6px 6px' }} className="scroll">
-        {isLoading ? (
-          <span style={{ display: 'block', padding: '4px 10px', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
-            Loading…
-          </span>
-        ) : clusters.length === 0 ? (
-          <span style={{ display: 'block', padding: '4px 10px', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
-            No clusters yet.
-          </span>
+        {isAdmin ? (
+          isLoading ? (
+            <span style={{ display: 'block', padding: '4px 10px', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
+              Loading…
+            </span>
+          ) : clusters.length === 0 ? (
+            <span style={{ display: 'block', padding: '4px 10px', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
+              No clusters yet.
+            </span>
+          ) : (
+            clusters.map((c, i) => (
+              <ClusterNavItem key={c.id} cluster={c} defaultExpanded={i === 0} />
+            ))
+          )
         ) : (
-          clusters.map((c, i) => (
-            <ClusterNavItem key={c.id} cluster={c} defaultExpanded={i === 0} />
-          ))
+          <UserDlqNav />
         )}
       </div>
 

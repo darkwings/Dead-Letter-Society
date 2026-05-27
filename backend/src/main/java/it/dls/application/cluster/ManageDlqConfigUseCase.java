@@ -52,6 +52,11 @@ public class ManageDlqConfigUseCase {
         return dlqConfigRepo.findById(id);
     }
 
+    @Transactional(Transactional.TxType.SUPPORTS)
+    public List<DlqConfig> listForUser(UUID userId) {
+        return dlqConfigRepo.findByUserId(userId);
+    }
+
     @Transactional
     public DlqConfig updateDlqConfig(UUID id, UpdateDlqConfigCommand cmd) {
         var config = dlqConfigRepo.findById(id)
@@ -76,6 +81,14 @@ public class ManageDlqConfigUseCase {
         var config = dlqConfigRepo.findById(dlqConfigId)
             .orElseThrow(() -> new IllegalArgumentException("DlqConfig not found: " + dlqConfigId));
         config.assignUser(userId, role);
+        dlqConfigRepo.save(config);
+    }
+
+    @Transactional
+    public void revokeUser(UUID dlqConfigId, UUID userId) {
+        var config = dlqConfigRepo.findById(dlqConfigId)
+            .orElseThrow(() -> new IllegalArgumentException("DlqConfig not found: " + dlqConfigId));
+        config.revokeUser(userId);
         dlqConfigRepo.save(config);
     }
 }

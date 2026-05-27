@@ -111,13 +111,13 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
-        {loadingSummary
+        {loadingSummary || !summary
           ? STATUS_CONFIG.map(s => <SummaryCardSkeleton key={s.key} />)
           : STATUS_CONFIG.map(s => (
             <SummaryCard
               key={s.key}
               label={s.label}
-              count={summary![s.key]}
+              count={summary[s.key]}
               color={`hsl(${s.color})`}
             />
           ))

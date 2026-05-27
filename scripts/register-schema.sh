@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Registers an Avro schema in Redpanda Schema Registry.
+# Usage: ./scripts/register-schema.sh [subject] [sr-url]
+#   subject  — default: orders.dlq-value
+#   sr-url   — default: http://localhost:8081
+
+set -euo pipefail
+
+SUBJECT="${1:-orders.dlq-value}"
+SR_URL="${2:-http://localhost:8081}"
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+# ── schema definition ────────────────────────────────────────────────────────
+# Matches the JSON payload produced by seed-dlq.sh.
+# namespace mirrors the domain package so the backend can decode it.
+AVRO_SCHEMA='{
+  "type": "record",
+  "name": "Order",
+  "namespace": "it.dls.domain.order",
+  "fields": [
+    {"name": "orderId",       "type": "string"},
+    {"name": "customerId",    "type": "string"},
+    {"name": "item", "type": {
+      "type": "record",
+      "name": "OrderItem",
+      "fields": [
+        {"name": "sku",       "type": "string"},
+        {"name": "qty",       "type": "int"},
+        {"name": "unitPrice", "type": "double"},
+        {"name": "currency",  "type": "string"}
+      ]
+    }},
+    {"name": "total",         "type": "double"},
+    {"name": "timestamp",     "type": "string"},
+    {"name": "correlationId", "type": "string"}
+  ]
+}'
+
+# ── sanity check ─────────────────────────────────────────────────────────────
+echo -e "${YELLOW}Schema Registry: ${SR_URL}${NC}"
+if ! curl -sf "${SR_URL}/config" > /dev/null 2>&1; then
+  echo -e "${RED}Cannot reach Schema Registry at ${SR_URL}${NC}"
+  echo "Start the stack:  docker compose -f docker/docker-compose.dev.yml up -d"
+  exit 1
+fi
+
+# ── register ─────────────────────────────────────────────────────────────────
+echo -e "${YELLOW}Registering subject '${SUBJECT}'...${NC}"
+
+# The SR API expects the schema as a JSON-escaped string inside the body.
+ESCAPED=$(echo "$AVRO_SCHEMA" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))")
+BODY="{\"schemaType\":\"AVRO\",\"schema\":${ESCAPED}}"
+
+RESPONSE=$(curl -sf -X POST \
+  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  -d "$BODY" \
+  "${SR_URL}/subjects/${SUBJECT}/versions")
+
+SCHEMA_ID=$(echo "$RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+
+echo -e "${GREEN}Registered.${NC}  subject=${SUBJECT}  schemaId=${SCHEMA_ID}"
+
+# ── verify ────────────────────────────────────────────────────────────────────
+echo
+echo -e "${YELLOW}Registered subjects:${NC}"
+curl -sf "${SR_URL}/subjects" | python3 -c "import json,sys; [print(' ', s) for s in json.load(sys.stdin)]"
+
+echo
+echo -e "${YELLOW}Schema detail (id=${SCHEMA_ID}):${NC}"
+curl -sf "${SR_URL}/schemas/ids/${SCHEMA_ID}" \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps(json.loads(d['schema']), indent=2))"

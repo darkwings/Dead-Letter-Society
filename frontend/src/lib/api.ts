@@ -36,6 +36,10 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
   const res = await fetch(`${BASE}${path}`, { ...init, headers })
   if (!res.ok) {
+    if (res.status === 401) {
+      useAuthStore.getState().logout()
+      throw new ApiError('Session expired', 401, {})
+    }
     const body: ApiErrorBody = await res.json().catch(() => ({}))
     const msg = body.detail ?? body.message ?? res.statusText
     throw new ApiError(msg, res.status, body)

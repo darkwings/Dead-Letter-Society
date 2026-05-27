@@ -9,6 +9,7 @@ public interface DlqConfigRepository {
     Optional<DlqConfig> findById(UUID id);
     List<DlqConfig> findAll();
     List<DlqConfig> findByClusterId(UUID clusterId);
+    List<DlqConfig> findByUserId(UUID userId);
     List<DlqConfig> findAllWithScheduledFetch();
     void delete(UUID id);
 }
