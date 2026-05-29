@@ -1,6 +1,5 @@
 package it.dls.infrastructure.persistence;
 
-import it.dls.application.dashboard.SparklinePoint;
 import it.dls.domain.message.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

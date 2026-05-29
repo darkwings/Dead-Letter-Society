@@ -7,7 +7,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import org.jboss.logging.Logger;
-import io.quarkus.scheduler.Scheduled;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -20,7 +19,6 @@ public class RetentionJob {
     @Inject DlqConfigRepository configRepo;
     @Inject MessageRepository messageRepo;
 
-    @Scheduled(cron = "0 0 2 * * ?")
     @Transactional
     public void applyRetention() {
         var configs = configRepo.findAll();

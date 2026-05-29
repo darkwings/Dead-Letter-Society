@@ -2,6 +2,7 @@ package it.dls.application.dashboard;
 
 import it.dls.domain.message.MessageRepository;
 import it.dls.domain.message.MessageStatus;
+import it.dls.domain.message.SparklinePoint;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;

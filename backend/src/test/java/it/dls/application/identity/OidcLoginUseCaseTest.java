@@ -3,10 +3,10 @@ package it.dls.application.identity;
 import it.dls.domain.user.GlobalRole;
 import it.dls.domain.user.User;
 import it.dls.domain.user.UserRepository;
-import jakarta.json.Json;
-import jakarta.json.JsonObject;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,14 +21,12 @@ class OidcLoginUseCaseTest {
         return new OidcLoginUseCase(userRepository, "roles", "dls-admin");
     }
 
-    private JsonObject emptyClaimsObject() {
-        return Json.createObjectBuilder().build();
+    private OidcClaims emptyClaims() {
+        return OidcClaims.empty();
     }
 
-    private JsonObject claimsWithAdmin() {
-        return Json.createObjectBuilder()
-            .add("roles", Json.createArrayBuilder().add("dls-admin").build())
-            .build();
+    private OidcClaims claimsWithAdmin() {
+        return new OidcClaims(Map.of("roles", List.of("dls-admin")));
     }
 
     @Test
@@ -36,7 +34,7 @@ class OidcLoginUseCaseTest {
         when(userRepository.findByOidcSubject("sub-123")).thenReturn(Optional.empty());
 
         User result = useCase()
-            .loginOrProvision("sub-123", "test@oidc.io", "Test User", emptyClaimsObject());
+            .loginOrProvision("sub-123", "test@oidc.io", "Test User", emptyClaims());
 
         assertThat(result.getGlobalRole()).isEqualTo(GlobalRole.USER);
         verify(userRepository, times(1)).save(any(User.class));
@@ -74,7 +72,7 @@ class OidcLoginUseCaseTest {
         when(userRepository.findByOidcSubject("sub-123")).thenReturn(Optional.of(existingUser));
 
         User result = useCase()
-            .loginOrProvision("sub-123", "test@oidc.io", "Test User", emptyClaimsObject());
+            .loginOrProvision("sub-123", "test@oidc.io", "Test User", emptyClaims());
 
         assertThat(result.getGlobalRole()).isEqualTo(GlobalRole.USER);
         verify(userRepository, times(1)).save(existingUser);

@@ -2,12 +2,10 @@ package it.dls.infrastructure.api.auth;
 
 import io.quarkus.security.Authenticated;
 import io.smallrye.jwt.build.Jwt;
+import it.dls.application.identity.OidcClaims;
 import it.dls.application.identity.OidcLoginUseCase;
 import it.dls.domain.user.User;
 import jakarta.inject.Inject;
-import jakarta.json.Json;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
@@ -18,6 +16,10 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Path("/api/auth/oidc")
@@ -47,7 +49,7 @@ public class OidcCallbackResource {
             ? oidcToken.<String>getClaim("name")
             : email;
 
-        JsonObject claims = buildClaimsObject();
+        OidcClaims claims = buildOidcClaims();
         User user = oidcLoginUseCase.loginOrProvision(subject, email, displayName, claims);
 
         String token = Jwt.issuer("https://dls.io")
@@ -61,20 +63,16 @@ public class OidcCallbackResource {
         return Response.ok(new LoginResponse(token, UserResponse.from(user))).build();
     }
 
-    private JsonObject buildClaimsObject() {
-        var builder = Json.createObjectBuilder();
+    private OidcClaims buildOidcClaims() {
+        Map<String, List<String>> multiValueClaims = new HashMap<>();
         oidcToken.getClaimNames().forEach(name -> {
             Object value = oidcToken.getClaim(name);
             if (value instanceof java.util.Collection<?> col) {
-                var arrBuilder = Json.createArrayBuilder();
-                col.forEach(item -> arrBuilder.add(item.toString()));
-                builder.add(name, arrBuilder.build());
-            } else if (value instanceof JsonObject nested) {
-                builder.add(name, nested);
-            } else if (value != null) {
-                builder.add(name, value.toString());
+                List<String> values = new ArrayList<>();
+                col.forEach(item -> values.add(item.toString()));
+                multiValueClaims.put(name, values);
             }
         });
-        return builder.build();
+        return new OidcClaims(multiValueClaims);
     }
 }

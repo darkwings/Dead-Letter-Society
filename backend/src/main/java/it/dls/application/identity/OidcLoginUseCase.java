@@ -2,9 +2,6 @@ package it.dls.application.identity;
 
 import it.dls.domain.user.User;
 import it.dls.domain.user.UserRepository;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonString;
 
 public class OidcLoginUseCase {
 
@@ -21,21 +18,21 @@ public class OidcLoginUseCase {
     }
 
     public User loginOrProvision(String subject, String email,
-                                 String displayName, JsonObject claims) {
+                                 String displayName, OidcClaims claims) {
         return userRepository.findByOidcSubject(subject)
             .map(user -> syncAdminRole(user, claims))
             .orElseGet(() -> provision(subject, email, displayName, claims));
     }
 
     private User provision(String subject, String email,
-                           String displayName, JsonObject claims) {
+                           String displayName, OidcClaims claims) {
         User user = User.createOidc(email, displayName, subject);
         if (hasAdminClaim(claims)) user.promoteToAdmin();
         userRepository.save(user);
         return user;
     }
 
-    private User syncAdminRole(User user, JsonObject claims) {
+    private User syncAdminRole(User user, OidcClaims claims) {
         if (hasAdminClaim(claims)) {
             user.promoteToAdmin();
         } else {
@@ -45,10 +42,7 @@ public class OidcLoginUseCase {
         return user;
     }
 
-    private boolean hasAdminClaim(JsonObject claims) {
-        JsonArray claim = claims.getJsonArray(adminClaimName);
-        return claim != null && claim.getValuesAs(JsonString.class)
-                                     .stream()
-                                     .anyMatch(v -> adminClaimValue.equals(v.getString()));
+    private boolean hasAdminClaim(OidcClaims claims) {
+        return claims.getValues(adminClaimName).contains(adminClaimValue);
     }
 }

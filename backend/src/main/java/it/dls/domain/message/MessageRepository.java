@@ -1,7 +1,5 @@
 package it.dls.domain.message;
 
-import it.dls.application.dashboard.SparklinePoint;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;

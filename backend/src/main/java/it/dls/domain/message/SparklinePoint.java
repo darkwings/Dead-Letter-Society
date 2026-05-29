@@ -1,4 +1,4 @@
-package it.dls.application.dashboard;
+package it.dls.domain.message;
 
 import java.time.LocalDate;
 
