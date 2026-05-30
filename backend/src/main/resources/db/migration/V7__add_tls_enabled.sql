@@ -1,0 +1,2 @@
+ALTER TABLE kafka_clusters
+    ADD COLUMN tls_enabled BOOLEAN NOT NULL DEFAULT TRUE;
