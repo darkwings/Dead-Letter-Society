@@ -81,5 +81,6 @@ class KafkaClusterRepositoryAdapterIT {
         assertThat(found.getSecurityConfig().protocol()).isEqualTo(KafkaSecurityProtocol.SASL_PLAIN);
         assertThat(found.getSecurityConfig().encryptedUsername()).isEqualTo("enc-user");
         assertThat(found.getSecurityConfig().encryptedPassword()).isEqualTo("enc-pass");
+        assertThat(found.getSecurityConfig().tlsEnabled()).isTrue();
     }
 }
