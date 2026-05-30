@@ -34,24 +34,26 @@ public class ManageClusterUseCase {
 
     @Transactional
     public KafkaCluster registerCluster(RegisterClusterCommand cmd) {
-        var security = buildSecurityConfig(cmd);
-
-        var kafkaResult = connectivity.testKafka(cmd.bootstrapServers(), security);
+        var plainSecurity = buildPlainSecurityConfig(cmd);
+        var kafkaResult = connectivity.testKafka(cmd.bootstrapServers(), plainSecurity);
         if (!kafkaResult.success())
             throw new ConnectivityValidationException("Kafka: " + kafkaResult.errorMessage());
 
+        var encSecurity = buildEncryptedSecurityConfig(cmd);
+
         SchemaRegistryConfig srConfig = null;
         if (cmd.srUrl() != null && !cmd.srUrl().isBlank()) {
+            var plainSrAuth = new SchemaRegistryAuthConfig(cmd.srUsername(), cmd.srPassword());
+            var srResult = connectivity.testSchemaRegistry(cmd.srUrl(), plainSrAuth);
+            if (!srResult.success())
+                throw new ConnectivityValidationException("Schema Registry: " + srResult.errorMessage());
             srConfig = new SchemaRegistryConfig(
                 cmd.srUrl(),
                 cmd.srUsername() != null ? encryption.encrypt(cmd.srUsername()) : null,
                 cmd.srPassword() != null ? encryption.encrypt(cmd.srPassword()) : null);
-            var srResult = connectivity.testSchemaRegistry(cmd.srUrl(), srConfig.authConfig());
-            if (!srResult.success())
-                throw new ConnectivityValidationException("Schema Registry: " + srResult.errorMessage());
         }
 
-        var cluster = KafkaCluster.create(cmd.bootstrapServers(), cmd.name(), security, srConfig);
+        var cluster = KafkaCluster.create(cmd.bootstrapServers(), cmd.name(), encSecurity, srConfig);
         clusterRepo.save(cluster);
         return cluster;
     }
@@ -90,7 +92,20 @@ public class ManageClusterUseCase {
         );
     }
 
-    private KafkaSecurityConfig buildSecurityConfig(RegisterClusterCommand cmd) {
+    private KafkaSecurityConfig buildPlainSecurityConfig(RegisterClusterCommand cmd) {
+        return switch (cmd.securityProtocol()) {
+            case PLAINTEXT -> KafkaSecurityConfig.plaintext();
+            case SSL -> KafkaSecurityConfig.ssl(cmd.keystorePem());
+            case SASL_PLAIN -> KafkaSecurityConfig.saslPlain(
+                cmd.username(), cmd.password(), cmd.tlsEnabled());
+            case SASL_SCRAM_SHA_256 -> KafkaSecurityConfig.saslScram256(
+                cmd.username(), cmd.password(), cmd.tlsEnabled());
+            case SASL_SCRAM_SHA_512 -> KafkaSecurityConfig.saslScram512(
+                cmd.username(), cmd.password(), cmd.tlsEnabled());
+        };
+    }
+
+    private KafkaSecurityConfig buildEncryptedSecurityConfig(RegisterClusterCommand cmd) {
         return switch (cmd.securityProtocol()) {
             case PLAINTEXT -> KafkaSecurityConfig.plaintext();
             case SSL -> KafkaSecurityConfig.ssl(encryption.encrypt(cmd.keystorePem()));

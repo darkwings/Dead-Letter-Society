@@ -5,6 +5,7 @@ import it.dls.domain.dlqconfig.DlqConfigRepository;
 import it.dls.domain.shared.EncryptionPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Optional;
@@ -104,5 +105,29 @@ class ManageClusterUseCaseTest {
         when(repo.findById(id)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> useCase.deleteCluster(id))
             .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void registerCluster_connectivityTestReceivesPlaintextCredentials() {
+        var cmd = new RegisterClusterCommand("prod", "broker:9092",
+            KafkaSecurityProtocol.SASL_SCRAM_SHA_256, false, "user", "pass", null,
+            null, null, null);
+        useCase.registerCluster(cmd);
+
+        var captor = ArgumentCaptor.forClass(KafkaSecurityConfig.class);
+        verify(connectivity).testKafka(eq("broker:9092"), captor.capture());
+        assertThat(captor.getValue().encryptedUsername()).isEqualTo("user");
+        assertThat(captor.getValue().encryptedPassword()).isEqualTo("pass");
+    }
+
+    @Test
+    void registerCluster_persistsEncryptedCredentials() {
+        var cmd = new RegisterClusterCommand("prod", "broker:9092",
+            KafkaSecurityProtocol.SASL_SCRAM_SHA_256, false, "user", "pass", null,
+            null, null, null);
+        var cluster = useCase.registerCluster(cmd);
+
+        assertThat(cluster.getSecurityConfig().encryptedUsername()).isEqualTo("enc-user");
+        assertThat(cluster.getSecurityConfig().encryptedPassword()).isEqualTo("enc-pass");
     }
 }
