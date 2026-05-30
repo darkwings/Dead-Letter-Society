@@ -74,8 +74,7 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
     private Properties buildKafkaProperties(String bootstrapServers, KafkaSecurityConfig security) {
         var props = new Properties();
         props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        KafkaSecurityProtocol protocol = security.protocol();
-        switch (protocol) {
+        switch (security.protocol()) {
             case PLAINTEXT -> props.put("security.protocol", "PLAINTEXT");
             case SSL -> {
                 props.put("security.protocol", "SSL");
@@ -84,21 +83,24 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
                     security.encryptedKeystorePem());
             }
             case SASL_PLAIN -> {
-                props.put("security.protocol", "SASL_SSL");
+                props.put("security.protocol",
+                    security.tlsEnabled() ? "SASL_SSL" : "SASL_PLAINTEXT");
                 props.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
                 props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaasConfig(
                     "org.apache.kafka.common.security.plain.PlainLoginModule",
                     security.encryptedUsername(), security.encryptedPassword()));
             }
             case SASL_SCRAM_SHA_256 -> {
-                props.put("security.protocol", "SASL_SSL");
+                props.put("security.protocol",
+                    security.tlsEnabled() ? "SASL_SSL" : "SASL_PLAINTEXT");
                 props.put(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-256");
                 props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaasConfig(
                     "org.apache.kafka.common.security.scram.ScramLoginModule",
                     security.encryptedUsername(), security.encryptedPassword()));
             }
             case SASL_SCRAM_SHA_512 -> {
-                props.put("security.protocol", "SASL_SSL");
+                props.put("security.protocol",
+                    security.tlsEnabled() ? "SASL_SSL" : "SASL_PLAINTEXT");
                 props.put(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-512");
                 props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaasConfig(
                     "org.apache.kafka.common.security.scram.ScramLoginModule",

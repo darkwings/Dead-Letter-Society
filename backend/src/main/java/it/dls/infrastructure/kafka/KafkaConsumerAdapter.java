@@ -11,6 +11,7 @@ import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.jboss.logging.Logger;
 
@@ -35,7 +36,7 @@ public class KafkaConsumerAdapter implements KafkaConsumerPort {
             var result = admin.describeTopics(List.of(topicName));
             var description = result.topicNameValues().get(topicName).get(ADMIN_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             return description.partitions().stream()
-                .map(p -> p.partition())
+                .map(TopicPartitionInfo::partition)
                 .sorted()
                 .toList();
         } catch (Exception e) {

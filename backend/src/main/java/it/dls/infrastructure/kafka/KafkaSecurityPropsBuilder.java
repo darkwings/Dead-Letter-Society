@@ -23,21 +23,24 @@ final class KafkaSecurityPropsBuilder {
                     security.encryptedKeystorePem());
             }
             case SASL_PLAIN -> {
-                props.put("security.protocol", "SASL_SSL");
+                props.put("security.protocol",
+                    security.tlsEnabled() ? "SASL_SSL" : "SASL_PLAINTEXT");
                 props.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
                 props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
                     "org.apache.kafka.common.security.plain.PlainLoginModule",
                     security.encryptedUsername(), security.encryptedPassword()));
             }
             case SASL_SCRAM_SHA_256 -> {
-                props.put("security.protocol", "SASL_SSL");
+                props.put("security.protocol",
+                    security.tlsEnabled() ? "SASL_SSL" : "SASL_PLAINTEXT");
                 props.put(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-256");
                 props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
                     "org.apache.kafka.common.security.scram.ScramLoginModule",
                     security.encryptedUsername(), security.encryptedPassword()));
             }
             case SASL_SCRAM_SHA_512 -> {
-                props.put("security.protocol", "SASL_SSL");
+                props.put("security.protocol",
+                    security.tlsEnabled() ? "SASL_SSL" : "SASL_PLAINTEXT");
                 props.put(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-512");
                 props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
                     "org.apache.kafka.common.security.scram.ScramLoginModule",
