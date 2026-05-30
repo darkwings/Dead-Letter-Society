@@ -218,6 +218,7 @@ public class FetchMessagesUseCase {
         var enc = cluster.getSecurityConfig();
         return new KafkaSecurityConfig(
             enc.protocol(),
+            enc.tlsEnabled(),
             enc.encryptedUsername() != null ? encryption.decrypt(enc.encryptedUsername()) : null,
             enc.encryptedPassword() != null ? encryption.decrypt(enc.encryptedPassword()) : null,
             enc.encryptedKeystorePem() != null ? encryption.decrypt(enc.encryptedKeystorePem()) : null

@@ -75,7 +75,7 @@ class KafkaClusterRepositoryAdapterIT {
     @TestTransaction
     void saslClusterRoundTrip() {
         var cluster = KafkaCluster.create("broker:9092", "sasl-cluster",
-            KafkaSecurityConfig.saslPlain("enc-user", "enc-pass"), null);
+            KafkaSecurityConfig.saslPlain("enc-user", "enc-pass", true), null);
         repo.save(cluster);
         var found = repo.findById(cluster.getId()).get();
         assertThat(found.getSecurityConfig().protocol()).isEqualTo(KafkaSecurityProtocol.SASL_PLAIN);

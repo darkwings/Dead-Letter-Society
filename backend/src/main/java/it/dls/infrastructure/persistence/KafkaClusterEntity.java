@@ -32,6 +32,9 @@ public class KafkaClusterEntity extends PanacheEntityBase {
     @Column(name = "encrypted_keystore")
     public String encryptedKeystore;
 
+    @Column(name = "tls_enabled")
+    public boolean tlsEnabled;
+
     @Column(name = "sr_url")
     public String srUrl;
 
@@ -56,6 +59,7 @@ public class KafkaClusterEntity extends PanacheEntityBase {
         e.encryptedUsername = c.getSecurityConfig().encryptedUsername();
         e.encryptedPassword = c.getSecurityConfig().encryptedPassword();
         e.encryptedKeystore = c.getSecurityConfig().encryptedKeystorePem();
+        e.tlsEnabled = c.getSecurityConfig().tlsEnabled();
         if (c.getSchemaRegistry() != null) {
             e.srUrl = c.getSchemaRegistry().url();
             e.srEncryptedUser = c.getSchemaRegistry().encryptedUsername();
@@ -67,7 +71,7 @@ public class KafkaClusterEntity extends PanacheEntityBase {
     }
 
     public KafkaCluster toDomain() {
-        var security = new KafkaSecurityConfig(securityProtocol,
+        var security = new KafkaSecurityConfig(securityProtocol, tlsEnabled,
             encryptedUsername, encryptedPassword, encryptedKeystore);
         SchemaRegistryConfig sr = srUrl != null
             ? new SchemaRegistryConfig(srUrl, srEncryptedUser, srEncryptedPass)

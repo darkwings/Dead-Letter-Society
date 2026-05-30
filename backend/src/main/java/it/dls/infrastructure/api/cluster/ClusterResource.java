@@ -40,6 +40,7 @@ public class ClusterResource {
         try {
             var cmd = new RegisterClusterCommand(
                 req.name(), req.bootstrapServers(), req.securityProtocol(),
+                false, // tlsEnabled — wired in Task 5 via CreateClusterRequest
                 req.username(), req.password(), req.keystorePem(),
                 req.srUrl(), req.srUsername(), req.srPassword()
             );

@@ -38,7 +38,7 @@ class ManageClusterUseCaseTest {
     @Test
     void registerClusterSavesAndReturns() {
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.PLAINTEXT, null, null, null,
+            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null,
             "http://sr:8081", null, null);
         var cluster = useCase.registerCluster(cmd);
         assertThat(cluster.getId()).isNotNull();
@@ -49,7 +49,7 @@ class ManageClusterUseCaseTest {
     @Test
     void registerClusterEncryptsSaslCredentials() {
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.SASL_PLAIN, "user", "pass", null,
+            KafkaSecurityProtocol.SASL_PLAIN, true, "user", "pass", null,
             "http://sr:8081", null, null);
         var cluster = useCase.registerCluster(cmd);
         assertThat(cluster.getSecurityConfig().encryptedUsername()).isEqualTo("enc-user");
@@ -59,7 +59,7 @@ class ManageClusterUseCaseTest {
     @Test
     void registerClusterEncodesSrCredentials() {
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.PLAINTEXT, null, null, null,
+            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null,
             "http://sr:8081", "sr-user", "sr-pass");
         var cluster = useCase.registerCluster(cmd);
         assertThat(cluster.getSchemaRegistry().encryptedUsername()).isEqualTo("enc-sr-user");
@@ -70,7 +70,7 @@ class ManageClusterUseCaseTest {
     void registerClusterThrowsWhenKafkaUnreachable() {
         when(connectivity.testKafka(any(), any())).thenReturn(ConnectivityResult.fail("timeout"));
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.PLAINTEXT, null, null, null,
+            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null,
             "http://sr:8081", null, null);
         assertThatThrownBy(() -> useCase.registerCluster(cmd))
             .isInstanceOf(ConnectivityValidationException.class)
@@ -81,7 +81,7 @@ class ManageClusterUseCaseTest {
     void registerClusterThrowsWhenSchemaRegistryUnreachable() {
         when(connectivity.testSchemaRegistry(any(), any())).thenReturn(ConnectivityResult.fail("refused"));
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.PLAINTEXT, null, null, null,
+            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null,
             "http://sr:8081", null, null);
         assertThatThrownBy(() -> useCase.registerCluster(cmd))
             .isInstanceOf(ConnectivityValidationException.class)

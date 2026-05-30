@@ -83,6 +83,7 @@ public class ManageClusterUseCase {
     private KafkaSecurityConfig decryptSecurity(KafkaSecurityConfig enc) {
         return new KafkaSecurityConfig(
             enc.protocol(),
+            enc.tlsEnabled(),
             enc.encryptedUsername() != null ? encryption.decrypt(enc.encryptedUsername()) : null,
             enc.encryptedPassword() != null ? encryption.decrypt(enc.encryptedPassword()) : null,
             enc.encryptedKeystorePem() != null ? encryption.decrypt(enc.encryptedKeystorePem()) : null
@@ -93,11 +94,18 @@ public class ManageClusterUseCase {
         return switch (cmd.securityProtocol()) {
             case PLAINTEXT -> KafkaSecurityConfig.plaintext();
             case SSL -> KafkaSecurityConfig.ssl(encryption.encrypt(cmd.keystorePem()));
-            case SASL_PLAIN, SASL_SCRAM_SHA_256, SASL_SCRAM_SHA_512 ->
-                new KafkaSecurityConfig(cmd.securityProtocol(),
-                    encryption.encrypt(cmd.username()),
-                    encryption.encrypt(cmd.password()),
-                    null);
+            case SASL_PLAIN -> KafkaSecurityConfig.saslPlain(
+                encryption.encrypt(cmd.username()),
+                encryption.encrypt(cmd.password()),
+                cmd.tlsEnabled());
+            case SASL_SCRAM_SHA_256 -> KafkaSecurityConfig.saslScram256(
+                encryption.encrypt(cmd.username()),
+                encryption.encrypt(cmd.password()),
+                cmd.tlsEnabled());
+            case SASL_SCRAM_SHA_512 -> KafkaSecurityConfig.saslScram512(
+                encryption.encrypt(cmd.username()),
+                encryption.encrypt(cmd.password()),
+                cmd.tlsEnabled());
         };
     }
 }

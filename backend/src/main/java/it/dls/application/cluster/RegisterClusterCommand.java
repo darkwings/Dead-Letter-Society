@@ -6,6 +6,7 @@ public record RegisterClusterCommand(
     String name,
     String bootstrapServers,
     KafkaSecurityProtocol securityProtocol,
+    boolean tlsEnabled,
     String username,         // null unless SASL
     String password,         // null unless SASL
     String keystorePem,      // null unless SSL
