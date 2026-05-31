@@ -43,12 +43,13 @@ public class ManageClusterUseCase {
 
         SchemaRegistryConfig srConfig = null;
         if (cmd.srUrl() != null && !cmd.srUrl().isBlank()) {
+            String srUrl = normaliseSrUrl(cmd.srUrl());
             var plainSrAuth = new SchemaRegistryAuthConfig(cmd.srUsername(), cmd.srPassword());
-            var srResult = connectivity.testSchemaRegistry(cmd.srUrl(), plainSrAuth);
+            var srResult = connectivity.testSchemaRegistry(srUrl, plainSrAuth);
             if (!srResult.success())
                 throw new ConnectivityValidationException("Schema Registry: " + srResult.errorMessage());
             srConfig = new SchemaRegistryConfig(
-                cmd.srUrl(),
+                srUrl,
                 cmd.srUsername() != null ? encryption.encrypt(cmd.srUsername()) : null,
                 cmd.srPassword() != null ? encryption.encrypt(cmd.srPassword()) : null);
         }
@@ -112,5 +113,13 @@ public class ManageClusterUseCase {
                 encryption.encrypt(cmd.password()),
                 cmd.tlsEnabled());
         };
+    }
+
+    private String normaliseSrUrl(String url) {
+        String u = url.strip().replaceAll("/+$", "");
+        if (!u.startsWith("http://") && !u.startsWith("https://")) {
+            u = "http://" + u;
+        }
+        return u;
     }
 }

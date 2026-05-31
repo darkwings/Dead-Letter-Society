@@ -40,7 +40,8 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
     @Override
     public ConnectivityResult testSchemaRegistry(String url, SchemaRegistryAuthConfig auth) {
         try {
-            var conn = (HttpURLConnection) URI.create(url + "/subjects").toURL().openConnection();
+            String normalised = normaliseUrl(url);
+            var conn = (HttpURLConnection) URI.create(normalised + "/subjects").toURL().openConnection();
             conn.setConnectTimeout(5000);
             conn.setReadTimeout(5000);
             conn.setRequestMethod("GET");
@@ -112,5 +113,13 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
 
     private String buildJaas(String loginModule, String username, String password) {
         return loginModule + " required username=\"" + username + "\" password=\"" + password + "\";";
+    }
+
+    private String normaliseUrl(String url) {
+        String u = url.strip().replaceAll("/+$", "");
+        if (!u.startsWith("http://") && !u.startsWith("https://")) {
+            u = "http://" + u;
+        }
+        return u;
     }
 }

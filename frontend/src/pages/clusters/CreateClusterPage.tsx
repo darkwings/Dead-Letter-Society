@@ -120,6 +120,19 @@ export default function CreateClusterPage() {
             />
           </div>
 
+          {watch('srUrl') && (
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label htmlFor="srUsername" style={{ fontSize: 12, fontWeight: 500 }}>Schema Registry Username (optional)</label>
+                <input id="srUsername" className="input" {...register('srUsername')} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label htmlFor="srPassword" style={{ fontSize: 12, fontWeight: 500 }}>Schema Registry Password (optional)</label>
+                <input id="srPassword" type="password" className="input" {...register('srPassword')} />
+              </div>
+            </>
+          )}
+
           <button
             type="submit"
             className="btn btn-primary"
