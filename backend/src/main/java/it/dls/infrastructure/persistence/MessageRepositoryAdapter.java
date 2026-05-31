@@ -132,7 +132,7 @@ public class MessageRepositoryAdapter implements MessageRepository {
             .getResultList();
 
         Map<LocalDate, long[]> byDay = rows.stream().collect(Collectors.toMap(
-            r -> ((java.sql.Timestamp) r[0]).toLocalDateTime().toLocalDate(),
+            r -> ((java.time.LocalDateTime) r[0]).toLocalDate(),
             r -> new long[]{ ((Number) r[2]).longValue(), ((Number) r[1]).longValue() }
         ));
 
