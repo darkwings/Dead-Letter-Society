@@ -10,4 +10,7 @@ public interface SchemaRegistryPort {
 
     ValidationResult validate(JsonNode payload, int schemaId,
                                String schemaRegistryUrl, SchemaRegistryAuthConfig auth);
+
+    byte[] encode(JsonNode payload, int schemaId,
+                  String schemaRegistryUrl, SchemaRegistryAuthConfig auth);
 }

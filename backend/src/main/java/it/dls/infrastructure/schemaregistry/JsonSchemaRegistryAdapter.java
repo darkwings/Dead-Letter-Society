@@ -9,6 +9,8 @@ import it.dls.domain.shared.ValidationResult;
 import io.quarkus.arc.DefaultBean;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import java.nio.charset.StandardCharsets;
+
 @DefaultBean
 @ApplicationScoped
 public class JsonSchemaRegistryAdapter implements SchemaRegistryPort {
@@ -30,5 +32,11 @@ public class JsonSchemaRegistryAdapter implements SchemaRegistryPort {
     public ValidationResult validate(JsonNode payload, int schemaId,
                                       String schemaRegistryUrl, SchemaRegistryAuthConfig auth) {
         return ValidationResult.ok();
+    }
+
+    @Override
+    public byte[] encode(JsonNode payload, int schemaId,
+                         String schemaRegistryUrl, SchemaRegistryAuthConfig auth) {
+        return payload.toString().getBytes(StandardCharsets.UTF_8);
     }
 }
