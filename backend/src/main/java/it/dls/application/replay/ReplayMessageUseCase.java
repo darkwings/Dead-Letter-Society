@@ -65,7 +65,7 @@ public class ReplayMessageUseCase {
         headers.put("x-dls-replayed-by", replayedBy.toString());
 
         try {
-            var payload = resolvePayload(msg, editedPayload, targetSchemaId, srUrl, srAuth);
+            var payload = resolvePayload(effectivePayload, editedPayload, msg.getRawPayload(), targetSchemaId, srUrl, srAuth);
 
             producer.publish(cluster.getBootstrapServers(),
                 cluster.getSecurityConfig().decrypted(encryption),
@@ -111,17 +111,20 @@ public class ReplayMessageUseCase {
         return schemaId;
     }
 
-    private byte[] resolvePayload(DlqMessage msg, JsonNode editedPayload,
-                                   Integer targetSchemaId, String srUrl, SchemaRegistryAuthConfig srAuth) {
-        if (editedPayload == null) {
-            JsonNode decoded = msg.getDecodedPayload();
-            if (decoded != null && srUrl != null && targetSchemaId != null) {
-                return schemaRegistry.encode(decoded, targetSchemaId, srUrl, srAuth);
-            }
-            return msg.getRawPayload();
+    private byte[] resolvePayload(JsonNode effectivePayload, JsonNode editedPayload,
+                                   byte[] rawPayload, Integer targetSchemaId,
+                                   String srUrl, SchemaRegistryAuthConfig srAuth) {
+        if (canEncodeWithTargetSchema(effectivePayload, srUrl, targetSchemaId)) {
+            return schemaRegistry.encode(effectivePayload, targetSchemaId, srUrl, srAuth);
         }
-        if (srUrl == null || targetSchemaId == null) return editedPayload.toString().getBytes(StandardCharsets.UTF_8);
-        return schemaRegistry.encode(editedPayload, targetSchemaId, srUrl, srAuth);
+        if (editedPayload != null) {
+            return editedPayload.toString().getBytes(StandardCharsets.UTF_8);
+        }
+        return rawPayload;
+    }
+
+    private boolean canEncodeWithTargetSchema(JsonNode payload, String srUrl, Integer schemaId) {
+        return payload != null && srUrl != null && schemaId != null;
     }
 
     private void safeNotify(Runnable r) {
