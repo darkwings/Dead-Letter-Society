@@ -1,5 +1,7 @@
 package it.dls.domain.cluster;
 
+import it.dls.domain.shared.EncryptionPort;
+
 public record KafkaSecurityConfig(
     KafkaSecurityProtocol protocol,
     boolean tlsEnabled,
@@ -44,5 +46,14 @@ public record KafkaSecurityConfig(
                                                     boolean tlsEnabled) {
         return new KafkaSecurityConfig(KafkaSecurityProtocol.SASL_SCRAM_SHA_512,
             tlsEnabled, encryptedUsername, encryptedPassword, null);
+    }
+
+    public KafkaSecurityConfig decrypted(EncryptionPort encryption) {
+        return new KafkaSecurityConfig(
+            protocol, tlsEnabled,
+            encryptedUsername != null ? encryption.decrypt(encryptedUsername) : null,
+            encryptedPassword != null ? encryption.decrypt(encryptedPassword) : null,
+            encryptedKeystorePem != null ? encryption.decrypt(encryptedKeystorePem) : null
+        );
     }
 }

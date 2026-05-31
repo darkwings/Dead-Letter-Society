@@ -94,8 +94,10 @@ public class FetchMessagesUseCase {
             var cluster = clusterRepo.findById(config.getClusterId())
                 .orElseThrow(() -> new IllegalArgumentException("Cluster not found: " + config.getClusterId()));
 
-            var security = decryptSecurity(cluster);
-            var srAuth = decryptSchemaRegistryAuth(cluster);
+            var security = cluster.getSecurityConfig().decrypted(encryption);
+            var srAuth = cluster.getSchemaRegistry() != null
+                ? cluster.getSchemaRegistry().authConfig().decrypted(encryption)
+                : SchemaRegistryAuthConfig.none();
 
             // FETCH-003: partition reconciliation
             var brokerPartitions = kafkaConsumer.getPartitions(
@@ -214,24 +216,4 @@ public class FetchMessagesUseCase {
             raw.key(), raw.value(), decoded, schemaId, raw.headers(), decodeFailed);
     }
 
-    private KafkaSecurityConfig decryptSecurity(KafkaCluster cluster) {
-        var enc = cluster.getSecurityConfig();
-        return new KafkaSecurityConfig(
-            enc.protocol(),
-            enc.tlsEnabled(),
-            enc.encryptedUsername() != null ? encryption.decrypt(enc.encryptedUsername()) : null,
-            enc.encryptedPassword() != null ? encryption.decrypt(enc.encryptedPassword()) : null,
-            enc.encryptedKeystorePem() != null ? encryption.decrypt(enc.encryptedKeystorePem()) : null
-        );
-    }
-
-    private SchemaRegistryAuthConfig decryptSchemaRegistryAuth(KafkaCluster cluster) {
-        if (cluster.getSchemaRegistry() == null) return SchemaRegistryAuthConfig.none();
-        var enc = cluster.getSchemaRegistry().authConfig();
-        if (!enc.hasCredentials()) return SchemaRegistryAuthConfig.none();
-        return new SchemaRegistryAuthConfig(
-            encryption.decrypt(enc.encryptedUsername()),
-            encryption.decrypt(enc.encryptedPassword())
-        );
-    }
 }

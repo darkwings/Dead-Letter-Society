@@ -2,7 +2,6 @@ package it.dls.application.replay;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import it.dls.domain.cluster.KafkaClusterRepository;
-import it.dls.domain.cluster.KafkaSecurityConfig;
 import it.dls.domain.cluster.SchemaRegistryAuthConfig;
 import it.dls.domain.dlqconfig.DlqConfigRepository;
 import it.dls.domain.message.MessageRepository;
@@ -48,7 +47,7 @@ public class ReplayMessageUseCase {
             .orElseThrow(() -> new IllegalArgumentException("Cluster not found: " + config.getClusterId()));
 
         if (editedPayload != null && msg.getSchemaId() != null && cluster.getSchemaRegistry() != null) {
-            var srAuth = decryptSchemaRegistryAuth(cluster.getSchemaRegistry().authConfig());
+            var srAuth = cluster.getSchemaRegistry().authConfig().decrypted(encryption);
             var validation = schemaRegistry.validate(editedPayload, msg.getSchemaId(),
                 cluster.getSchemaRegistry().url(), srAuth);
             if (!validation.valid())
@@ -66,7 +65,7 @@ public class ReplayMessageUseCase {
 
         try {
             producer.publish(cluster.getBootstrapServers(),
-                decryptSecurity(cluster.getSecurityConfig()),
+                cluster.getSecurityConfig().decrypted(encryption),
                 targetTopic, msg.getKey(), payload, headers);
 
             msg.transitionTo(MessageStatus.REPLAYED);
@@ -94,30 +93,12 @@ public class ReplayMessageUseCase {
         var cluster = config != null ? clusterRepo.findById(config.getClusterId()).orElse(null) : null;
         if (cluster == null || cluster.getSchemaRegistry() == null)
             return ValidationResult.ok();
-        var srAuth = decryptSchemaRegistryAuth(cluster.getSchemaRegistry().authConfig());
+        var srAuth = cluster.getSchemaRegistry().authConfig().decrypted(encryption);
         return schemaRegistry.validate(payload, msg.getSchemaId(),
             cluster.getSchemaRegistry().url(), srAuth);
     }
 
     private void safeNotify(Runnable r) {
         try { r.run(); } catch (Exception ignored) {}
-    }
-
-    private KafkaSecurityConfig decryptSecurity(KafkaSecurityConfig enc) {
-        return new KafkaSecurityConfig(
-            enc.protocol(),
-            enc.tlsEnabled(),
-            enc.encryptedUsername() != null ? encryption.decrypt(enc.encryptedUsername()) : null,
-            enc.encryptedPassword() != null ? encryption.decrypt(enc.encryptedPassword()) : null,
-            enc.encryptedKeystorePem() != null ? encryption.decrypt(enc.encryptedKeystorePem()) : null
-        );
-    }
-
-    private SchemaRegistryAuthConfig decryptSchemaRegistryAuth(SchemaRegistryAuthConfig enc) {
-        if (!enc.hasCredentials()) return SchemaRegistryAuthConfig.none();
-        return new SchemaRegistryAuthConfig(
-            encryption.decrypt(enc.encryptedUsername()),
-            encryption.decrypt(enc.encryptedPassword())
-        );
     }
 }

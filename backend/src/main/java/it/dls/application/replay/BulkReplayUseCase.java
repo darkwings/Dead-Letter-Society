@@ -1,8 +1,11 @@
 package it.dls.application.replay;
 
+import it.dls.domain.cluster.KafkaCluster;
 import it.dls.domain.cluster.KafkaClusterRepository;
 import it.dls.domain.cluster.KafkaSecurityConfig;
+import it.dls.domain.dlqconfig.DlqConfig;
 import it.dls.domain.dlqconfig.DlqConfigRepository;
+import it.dls.domain.message.DlqMessage;
 import it.dls.domain.message.MessageRepository;
 import it.dls.domain.message.MessageStatus;
 import it.dls.domain.message.ReplayAuditRecord;
@@ -38,56 +41,54 @@ public class BulkReplayUseCase {
             .orElseThrow(() -> new IllegalArgumentException("DlqConfig not found: " + dlqConfigId));
         var cluster = clusterRepo.findById(config.getClusterId())
             .orElseThrow(() -> new IllegalArgumentException("Cluster not found: " + config.getClusterId()));
-        var security = decryptSecurity(cluster.getSecurityConfig());
+        var security = cluster.getSecurityConfig().decrypted(encryption);
 
         int succeeded = 0, failed = 0;
         for (UUID msgId : messageIds) {
             var msgOpt = messageRepo.findById(msgId);
             if (msgOpt.isEmpty()) continue;
-            var msg = msgOpt.get();
-
-            String targetTopic;
-            try {
-                targetTopic = topicResolver.resolve(msg, config, null);
-            } catch (ReplayTopicNotResolvableException e) {
-                failed++;
-                continue;
-            }
-
-            var headers = new HashMap<>(msg.getHeaders());
-            headers.put("x-dls-replayed-at", Instant.now().toString());
-            headers.put("x-dls-replayed-by", replayedBy.toString());
-
-            try {
-                producer.publish(cluster.getBootstrapServers(), security,
-                    targetTopic, msg.getKey(), msg.getRawPayload(), headers);
-                msg.transitionTo(MessageStatus.REPLAYED);
-                messageRepo.save(msg);
-                auditRepo.save(ReplayAuditRecord.success(msgId, replayedBy, targetTopic, false));
-                safeNotify(() -> notifier.emitMessageStatusChanged(msgId, dlqConfigId, "REPLAYED"));
+            if (replayOne(msgOpt.get(), config, cluster, security, replayedBy, dlqConfigId)) {
                 succeeded++;
-            } catch (Exception e) {
-                msg.transitionTo(MessageStatus.REPLAY_FAILED);
-                messageRepo.save(msg);
-                auditRepo.save(ReplayAuditRecord.failure(msgId, replayedBy, e.getMessage()));
-                safeNotify(() -> notifier.emitMessageStatusChanged(msgId, dlqConfigId, "REPLAY_FAILED"));
+            } else {
                 failed++;
             }
         }
         return new BulkReplayResult(succeeded, failed);
     }
 
-    private void safeNotify(Runnable r) {
-        try { r.run(); } catch (Exception ignored) {}
+    private boolean replayOne(DlqMessage msg, DlqConfig config, KafkaCluster cluster,
+                               KafkaSecurityConfig security,
+                               UUID replayedBy, UUID dlqConfigId) {
+        String targetTopic;
+        try {
+            targetTopic = topicResolver.resolve(msg, config, null);
+        } catch (ReplayTopicNotResolvableException e) {
+            return false;
+        }
+
+        var headers = new HashMap<>(msg.getHeaders());
+        headers.put("x-dls-replayed-at", Instant.now().toString());
+        headers.put("x-dls-replayed-by", replayedBy.toString());
+        UUID msgId = msg.getId();
+
+        try {
+            producer.publish(cluster.getBootstrapServers(), security,
+                targetTopic, msg.getKey(), msg.getRawPayload(), headers);
+            msg.transitionTo(MessageStatus.REPLAYED);
+            messageRepo.save(msg);
+            auditRepo.save(ReplayAuditRecord.success(msgId, replayedBy, targetTopic, false));
+            safeNotify(() -> notifier.emitMessageStatusChanged(msgId, dlqConfigId, "REPLAYED"));
+            return true;
+        } catch (Exception e) {
+            msg.transitionTo(MessageStatus.REPLAY_FAILED);
+            messageRepo.save(msg);
+            auditRepo.save(ReplayAuditRecord.failure(msgId, replayedBy, e.getMessage()));
+            safeNotify(() -> notifier.emitMessageStatusChanged(msgId, dlqConfigId, "REPLAY_FAILED"));
+            return false;
+        }
     }
 
-    private KafkaSecurityConfig decryptSecurity(KafkaSecurityConfig enc) {
-        return new KafkaSecurityConfig(
-            enc.protocol(),
-            enc.tlsEnabled(),
-            enc.encryptedUsername() != null ? encryption.decrypt(enc.encryptedUsername()) : null,
-            enc.encryptedPassword() != null ? encryption.decrypt(enc.encryptedPassword()) : null,
-            enc.encryptedKeystorePem() != null ? encryption.decrypt(enc.encryptedKeystorePem()) : null
-        );
+    private void safeNotify(Runnable r) {
+        try { r.run(); } catch (Exception ignored) {}
     }
 }

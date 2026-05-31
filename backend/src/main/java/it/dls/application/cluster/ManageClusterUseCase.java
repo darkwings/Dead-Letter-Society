@@ -74,22 +74,12 @@ public class ManageClusterUseCase {
     public List<String> listTopics(UUID clusterId) {
         var cluster = clusterRepo.findById(clusterId)
             .orElseThrow(() -> new IllegalArgumentException("Cluster not found: " + clusterId));
-        var decryptedSecurity = decryptSecurity(cluster.getSecurityConfig());
+        var decryptedSecurity = cluster.getSecurityConfig().decrypted(encryption);
         var all = connectivity.listTopics(cluster.getBootstrapServers(), decryptedSecurity);
         Set<String> configured = dlqConfigRepo.findByClusterId(clusterId).stream()
             .map(DlqConfig::getTopicName)
             .collect(Collectors.toSet());
         return all.stream().filter(t -> !configured.contains(t)).toList();
-    }
-
-    private KafkaSecurityConfig decryptSecurity(KafkaSecurityConfig enc) {
-        return new KafkaSecurityConfig(
-            enc.protocol(),
-            enc.tlsEnabled(),
-            enc.encryptedUsername() != null ? encryption.decrypt(enc.encryptedUsername()) : null,
-            enc.encryptedPassword() != null ? encryption.decrypt(enc.encryptedPassword()) : null,
-            enc.encryptedKeystorePem() != null ? encryption.decrypt(enc.encryptedKeystorePem()) : null
-        );
     }
 
     private KafkaSecurityConfig buildPlainSecurityConfig(RegisterClusterCommand cmd) {

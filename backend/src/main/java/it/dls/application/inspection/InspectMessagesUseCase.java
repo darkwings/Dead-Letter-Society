@@ -28,19 +28,16 @@ public class InspectMessagesUseCase {
     @Transactional(Transactional.TxType.SUPPORTS)
     public MessagePage listAllMessages(MessageStatus statusFilter, Pageable pageable,
                                        UUID requestingUserId, boolean isAdmin) {
-        List<UUID> accessibleIds;
-        if (isAdmin) {
-            accessibleIds = configRepo.findAll().stream()
-                .map(c -> c.getId())
-                .toList();
-        } else {
-            accessibleIds = configRepo.findAll().stream()
-                .filter(c -> c.getUserAssignments().stream()
-                    .anyMatch(a -> a.userId().equals(requestingUserId)))
-                .map(c -> c.getId())
-                .toList();
-        }
-        return messageRepo.findAll(statusFilter, pageable, accessibleIds);
+        return messageRepo.findAll(statusFilter, pageable,
+            accessibleConfigIds(requestingUserId, isAdmin));
+    }
+
+    private List<UUID> accessibleConfigIds(UUID userId, boolean isAdmin) {
+        return configRepo.findAll().stream()
+            .filter(c -> isAdmin || c.getUserAssignments().stream()
+                .anyMatch(a -> a.userId().equals(userId)))
+            .map(c -> c.getId())
+            .toList();
     }
 
     @Transactional(Transactional.TxType.SUPPORTS)
