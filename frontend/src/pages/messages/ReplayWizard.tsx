@@ -91,8 +91,10 @@ export default function ReplayWizard({
       })
     },
     onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['message', messageId] })
+      queryClient.invalidateQueries({ queryKey: ['messages'] })
+      queryClient.invalidateQueries({ queryKey: ['all-messages'] })
       if (result.success) {
-        queryClient.invalidateQueries({ queryKey: ['message', messageId] })
         toast.success('Replay successful')
         onClose()
       } else {

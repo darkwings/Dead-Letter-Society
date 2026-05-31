@@ -55,7 +55,10 @@ public class ReplayMessageUseCase {
 
         var targetTopic = topicResolver.resolve(msg, config, wizardTopicOverride);
 
-        var targetSchemaId = resolveAndValidateTargetSchema(editedPayload, targetTopic, srUrl, srAuth);
+        // Use editedPayload if provided; fall back to stored decoded payload so that
+        // even unedited replays re-encode with the target topic's schema ID (not the DLQ's).
+        JsonNode effectivePayload = editedPayload != null ? editedPayload : msg.getDecodedPayload();
+        var targetSchemaId = resolveAndValidateTargetSchema(effectivePayload, targetTopic, srUrl, srAuth);
 
         var headers = new HashMap<>(msg.getHeaders());
         headers.put("x-dls-replayed-at", Instant.now().toString());
@@ -99,18 +102,24 @@ public class ReplayMessageUseCase {
             cluster.getSchemaRegistry().url(), srAuth);
     }
 
-    private Integer resolveAndValidateTargetSchema(JsonNode editedPayload, String targetTopic,
+    private Integer resolveAndValidateTargetSchema(JsonNode payload, String targetTopic,
                                                     String srUrl, SchemaRegistryAuthConfig srAuth) {
-        if (editedPayload == null || srUrl == null) return null;
+        if (payload == null || srUrl == null) return null;
         int schemaId = schemaRegistry.resolveLatestSchemaId(targetTopic + VALUE_SUBJECT_SUFFIX, srUrl, srAuth);
-        var validation = schemaRegistry.validate(editedPayload, schemaId, srUrl, srAuth);
+        var validation = schemaRegistry.validate(payload, schemaId, srUrl, srAuth);
         if (!validation.valid()) throw new SchemaValidationException(validation.error());
         return schemaId;
     }
 
     private byte[] resolvePayload(DlqMessage msg, JsonNode editedPayload,
                                    Integer targetSchemaId, String srUrl, SchemaRegistryAuthConfig srAuth) {
-        if (editedPayload == null) return msg.getRawPayload();
+        if (editedPayload == null) {
+            JsonNode decoded = msg.getDecodedPayload();
+            if (decoded != null && srUrl != null && targetSchemaId != null) {
+                return schemaRegistry.encode(decoded, targetSchemaId, srUrl, srAuth);
+            }
+            return msg.getRawPayload();
+        }
         if (srUrl == null || targetSchemaId == null) return editedPayload.toString().getBytes(StandardCharsets.UTF_8);
         return schemaRegistry.encode(editedPayload, targetSchemaId, srUrl, srAuth);
     }

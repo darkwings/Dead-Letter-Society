@@ -81,6 +81,27 @@ public class InspectMessagesUseCase {
         return new BulkDiscardResult(succeeded, failed);
     }
 
+    @Transactional
+    public BulkUnderReviewResult bulkMarkUnderReview(UUID dlqConfigId, List<UUID> messageIds,
+                                                      UUID requestingUserId, boolean isAdmin) {
+        if (!isAdmin) assertOperatorAccess(dlqConfigId, requestingUserId);
+        int succeeded = 0, failed = 0;
+        for (UUID msgId : messageIds) {
+            var msgOpt = messageRepo.findById(msgId);
+            if (msgOpt.isEmpty()) { failed++; continue; }
+            var msg = msgOpt.get();
+            try {
+                msg.transitionTo(MessageStatus.UNDER_REVIEW);
+                messageRepo.save(msg);
+                safeNotify(() -> notifier.emitMessageStatusChanged(msgId, dlqConfigId, "UNDER_REVIEW"));
+                succeeded++;
+            } catch (Exception e) {
+                failed++;
+            }
+        }
+        return new BulkUnderReviewResult(succeeded, failed);
+    }
+
     private void safeNotify(Runnable r) {
         try { r.run(); } catch (Exception ignored) {}
     }

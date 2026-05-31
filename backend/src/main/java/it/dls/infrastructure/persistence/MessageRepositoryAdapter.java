@@ -78,7 +78,7 @@ public class MessageRepositoryAdapter implements MessageRepository {
         String baseQuery = base.toString();
         long total = DlqMessageEntity.count(baseQuery, params);
         List<DlqMessage> messages = DlqMessageEntity
-            .<DlqMessageEntity>find(baseQuery + " ORDER BY kafkaTimestamp DESC", params)
+            .<DlqMessageEntity>find(baseQuery + " ORDER BY kafkaTimestamp DESC, partition ASC, kafkaOffset ASC", params)
             .page(p.page(), p.size())
             .stream()
             .map(DlqMessageEntity::toDomain)
@@ -105,7 +105,7 @@ public class MessageRepositoryAdapter implements MessageRepository {
         String q = base.toString();
         long total = DlqMessageEntity.count(q, params);
         List<DlqMessage> messages = DlqMessageEntity
-            .<DlqMessageEntity>find(q + " ORDER BY kafkaTimestamp DESC", params)
+            .<DlqMessageEntity>find(q + " ORDER BY kafkaTimestamp DESC, partition ASC, kafkaOffset ASC", params)
             .page(p.page(), p.size())
             .stream()
             .map(DlqMessageEntity::toDomain)

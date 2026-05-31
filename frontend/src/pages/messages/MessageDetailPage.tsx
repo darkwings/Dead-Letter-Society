@@ -27,6 +27,7 @@ interface MessageDetail {
   rawPayload: string | null
   key: string | null
   headers: Record<string, string>
+  replayedDecodedPayload: unknown | null
 }
 
 export default function MessageDetailPage() {
@@ -229,6 +230,23 @@ export default function MessageDetailPage() {
           <p className="t-small">Empty payload.</p>
         )}
       </section>
+
+      {(msg.status === 'REPLAYED' || msg.status === 'REPLAY_FAILED') && (
+        <section style={{ marginBottom: 24 }}>
+          <h2 className="t-h2" style={{ marginBottom: 8 }}>Replayed Payload</h2>
+          {msg.replayedDecodedPayload ? (
+            <pre
+              data-testid="replayed-decoded-payload"
+              className="card json"
+              style={{ padding: 16, overflow: 'auto', maxHeight: 320, fontSize: 12 }}
+            >
+              {JSON.stringify(msg.replayedDecodedPayload, null, 2)}
+            </pre>
+          ) : (
+            <p className="t-small">Original payload replayed without modifications.</p>
+          )}
+        </section>
+      )}
 
       {headerEntries.length > 0 && (
         <section style={{ marginBottom: 24 }}>
