@@ -8,7 +8,7 @@ interface AuthUser {
   globalRole: 'ADMIN' | 'USER'
 }
 
-interface AuthState {
+export interface AuthState {
   token: string | null
   user: AuthUser | null
   setAuth: (token: string, user: AuthUser) => void

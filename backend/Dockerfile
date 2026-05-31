@@ -1,14 +1,21 @@
 # ── Stage 1: build ───────────────────────────────────────────────────────────
-FROM gradle:8.13-jdk21 AS build
+# Use eclipse-temurin (JDK) + gradlew so the exact Gradle version from
+# gradle-wrapper.properties is used — avoids version-mismatch issues with
+# the gradle:X.Y base images.
+FROM eclipse-temurin:21-jdk-jammy AS build
 WORKDIR /app
 
-# Cache dependency resolution layer separately from source changes
+# Download the correct Gradle distribution first (cached layer)
+COPY gradlew gradlew
+COPY gradle/wrapper/ gradle/wrapper/
+RUN chmod +x gradlew && ./gradlew --version
+
+# Cache dependency resolution separately from source changes
 COPY build.gradle settings.gradle* gradle.properties* ./
-COPY gradle/ gradle/
-RUN gradle dependencies --no-daemon -q 2>/dev/null || true
+RUN ./gradlew dependencies --no-daemon -q 2>/dev/null || true
 
 COPY src/ src/
-RUN gradle build --no-daemon -x test -q
+RUN ./gradlew build --no-daemon -x test -q
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-jammy AS runtime

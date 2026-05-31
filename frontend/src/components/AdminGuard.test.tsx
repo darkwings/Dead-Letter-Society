@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import AdminGuard from './AdminGuard'
+import type { AuthState } from '@/stores/authStore'
 
 vi.mock('@/stores/authStore', () => ({
   useAuthStore: vi.fn(),
@@ -16,16 +17,16 @@ function withRouter(ui: React.ReactNode) {
 
 describe('AdminGuard', () => {
   it('renders children for ADMIN', () => {
-    mockUseAuthStore.mockImplementation((sel: (s: { user: { globalRole: string } }) => unknown) =>
-      sel({ user: { globalRole: 'ADMIN' } })
+    mockUseAuthStore.mockImplementation((sel) =>
+      sel({ user: { globalRole: 'ADMIN' } } as unknown as AuthState)
     )
     render(withRouter(<AdminGuard><span>protected</span></AdminGuard>))
     expect(screen.getByText('protected')).toBeInTheDocument()
   })
 
   it('redirects non-admin USER to /messages', () => {
-    mockUseAuthStore.mockImplementation((sel: (s: { user: { globalRole: string } }) => unknown) =>
-      sel({ user: { globalRole: 'USER' } })
+    mockUseAuthStore.mockImplementation((sel) =>
+      sel({ user: { globalRole: 'USER' } } as unknown as AuthState)
     )
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
@@ -36,8 +37,8 @@ describe('AdminGuard', () => {
   })
 
   it('redirects when user is null', () => {
-    mockUseAuthStore.mockImplementation((sel: (s: { user: null }) => unknown) =>
-      sel({ user: null })
+    mockUseAuthStore.mockImplementation((sel) =>
+      sel({ user: null } as unknown as AuthState)
     )
     render(
       <MemoryRouter initialEntries={['/clusters']}>
