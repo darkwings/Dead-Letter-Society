@@ -12,11 +12,18 @@
 
 ### 1. Start infrastructure
 
-Redpanda (Kafka-compatible broker + Schema Registry) and PostgreSQL run in Docker. No credentials needed — dev profile uses hardcoded defaults.
+Confluent Kafka (KRaft, PLAINTEXT) and Schema Registry run alongside PostgreSQL in Docker. No credentials needed — dev profile uses hardcoded defaults.
 
 ```bash
 docker compose -f docker/docker-compose.dev.yml up -d
 ```
+
+Services started:
+| Container | Port | Purpose |
+|---|---|---|
+| `dls-dev-kafka` | 9092 | Kafka broker (PLAINTEXT) |
+| `dls-dev-schema-registry` | 8081 | Confluent Schema Registry |
+| `db` | 5432 | PostgreSQL |
 
 ### 2. Start the backend
 
@@ -61,65 +68,80 @@ cd frontend && npx playwright test
 
 ## Producing Test Messages to a DLQ
 
-Redpanda ships with `rpk` (Redpanda CLI). Use it to create a topic and publish messages that DLS will ingest.
+The `dls-dev-kafka` container ships with the standard Kafka CLI tools.
 
 ### Create a DLQ topic
 
 ```bash
-docker compose -f docker/docker-compose.dev.yml exec redpanda \
-  rpk topic create my-service.dlq --partitions 1
+docker compose -f docker/docker-compose.dev.yml exec dls-dev-kafka \
+  kafka-topics --bootstrap-server localhost:9092 \
+  --create --topic my-service.dlq --partitions 1 --replication-factor 1
 ```
 
 ### Produce a plain JSON message
 
+Messages are `key:value` pairs, one per line. Use `key.separator=:` and `parse.key=true`:
+
 ```bash
-docker compose -f docker/docker-compose.dev.yml exec redpanda \
-  rpk topic produce my-service.dlq --key order-123 <<'EOF'
-{"orderId":"order-123","status":"FAILED","reason":"payment_timeout"}
-EOF
+echo 'order-123:{"orderId":"order-123","status":"FAILED","reason":"payment_timeout"}' | \
+  docker compose -f docker/docker-compose.dev.yml exec -T dls-dev-kafka \
+  kafka-console-producer --bootstrap-server localhost:9092 \
+  --topic my-service.dlq \
+  --property parse.key=true \
+  --property key.separator=:
 ```
 
 ### Produce multiple messages from a file
 
-Create `messages.txt` with one JSON payload per line, then:
+Create `messages.txt` with one `key:json` payload per line, then:
 
 ```bash
-docker compose -f docker/docker-compose.dev.yml exec -T redpanda \
-  rpk topic produce my-service.dlq < messages.txt
+docker compose -f docker/docker-compose.dev.yml exec -T dls-dev-kafka \
+  kafka-console-producer --bootstrap-server localhost:9092 \
+  --topic my-service.dlq \
+  --property parse.key=true \
+  --property key.separator=: < messages.txt
 ```
 
 ### Produce with custom headers
 
+`kafka-console-producer` supports headers in format `headerKey:headerValue,headerKey2:headerValue2` prepended before the message when `parse.headers=true` is set:
+
 ```bash
-docker compose -f docker/docker-compose.dev.yml exec redpanda \
-  rpk topic produce my-service.dlq \
-  --header x-original-topic=my-service.events \
-  --header x-correlation-id=abc-123 \
-  --key order-123 <<'EOF'
-{"orderId":"order-123","status":"FAILED"}
-EOF
+printf 'x-original-topic:my-service.events,x-correlation-id:abc-123\torder-123:{"orderId":"order-123","status":"FAILED"}\n' | \
+  docker compose -f docker/docker-compose.dev.yml exec -T dls-dev-kafka \
+  kafka-console-producer --bootstrap-server localhost:9092 \
+  --topic my-service.dlq \
+  --property parse.key=true \
+  --property key.separator=: \
+  --property parse.headers=true \
+  --property headers.delimiter='\t' \
+  --property headers.separator=, \
+  --property headers.key.separator=:
 ```
 
 > **Tip:** The `x-original-topic` header is used by the Replay Wizard as the default replay target topic.
 
-### Verify messages landed
+### Consume messages to verify
 
 ```bash
-docker compose -f docker/docker-compose.dev.yml exec redpanda \
-  rpk topic consume my-service.dlq --offset start --num 10
+docker compose -f docker/docker-compose.dev.yml exec dls-dev-kafka \
+  kafka-console-consumer --bootstrap-server localhost:9092 \
+  --topic my-service.dlq --from-beginning --max-messages 10 \
+  --property print.key=true
 ```
 
 ### Ingest into DLS
 
-1. In DLS, create a cluster pointing to `localhost:9092` (PLAINTEXT).
-2. Add a DLQ Config for the topic `my-service.dlq`.
+1. In DLS, create a cluster pointing to `localhost:9092` (PLAINTEXT, TLS disabled).
+2. Add a DLQ Config for topic `my-service.dlq`.
 3. Click **Fetch now** on the messages page to pull the messages in.
 
 ---
 
 ## Producing Schema-Encoded Messages
 
-Redpanda's Schema Registry runs on `http://localhost:8081`. DLS decodes messages using the schema ID embedded in the Confluent wire format (`0x00` + 4-byte schema ID + payload).
+Schema Registry runs on `http://localhost:8081`. DLS decodes messages using the schema ID embedded in the Confluent wire format (`0x00` + 4-byte schema ID + payload).
 
 Subject naming follows **TopicNameStrategy**: `<topic>-value` for the value schema, `<topic>-key` for the key.
 
@@ -162,30 +184,92 @@ curl -s http://localhost:8081/subjects/my-service.dlq-value/versions
 curl -s http://localhost:8081/subjects/my-service.dlq-value/versions/latest
 ```
 
-### Produce a schema-encoded message with rpk
+### Produce a schema-encoded message (Avro)
 
-`rpk` can encode the value using the Schema Registry automatically. It will embed the schema ID in the Confluent wire format.
+The `cp-schema-registry` container includes `kafka-avro-console-producer`, which encodes messages in Confluent wire format (magic byte + schema ID + Avro payload):
 
 ```bash
 echo '{"orderId":"order-123","status":"FAILED","reason":"payment_timeout"}' | \
-  docker compose -f docker/docker-compose.dev.yml exec -T redpanda \
-  rpk topic produce my-service.dlq \
-  --schema-id=topic \
-  -X registry.hosts=localhost:8081 \
-  --key order-123 \
-  --header x-original-topic=my-service.events \
-  --header x-correlation-id=abc-123
+  docker compose -f docker/docker-compose.dev.yml exec -T dls-dev-schema-registry \
+  kafka-avro-console-producer \
+  --bootstrap-server dls-dev-kafka:9092 \
+  --topic my-service.dlq \
+  --property schema.registry.url=http://localhost:8081 \
+  --property value.schema.id=1
 ```
 
-> **Note:** `--schema-id=topic` uses TopicNameStrategy — rpk looks up the latest schema for subject `my-service.dlq-value` and encodes the value in Confluent wire format (magic byte + schema ID + payload). The schema must be registered first.
+### Produce a schema-encoded message (JSON Schema)
+
+```bash
+echo '{"orderId":"order-123","status":"FAILED","reason":"payment_timeout"}' | \
+  docker compose -f docker/docker-compose.dev.yml exec -T dls-dev-schema-registry \
+  kafka-json-schema-console-producer \
+  --bootstrap-server dls-dev-kafka:9092 \
+  --topic my-service.dlq \
+  --property schema.registry.url=http://localhost:8081 \
+  --property value.schema.id=1
+```
 
 ### Configure DLS to use the Schema Registry
 
-When creating a DLQ Config cluster in DLS, set:
+When creating a cluster in DLS, set:
 - **Schema Registry URL:** `http://localhost:8081`
 - Leave auth fields empty for local dev (no authentication required)
 
-DLS will use the schema ID in each message to fetch and decode the payload via the configured Schema Registry.
+DLS uses the schema ID in each message to fetch and decode the payload via the configured Schema Registry.
+
+---
+
+## SASL/SCRAM Connectivity Test Stack
+
+A separate Docker Compose stack is provided to verify SASL/SCRAM Kafka and Schema Registry basic auth connectivity before integrating with a real authenticated cluster.
+
+### Start the test stack
+
+```bash
+docker compose -f docker/docker-compose.sasl-test.yml up -d
+```
+
+Services started:
+| Container | Port | Credentials |
+|---|---|---|
+| `dls-sasl-kafka` (EXTERNAL SASL_PLAINTEXT) | 19092 | `admin/admin-secret`, `dls-app/dls-secret` |
+| `dls-sasl-schema-registry` (HTTP basic auth) | 18081 | `sr-reader/sr-reader-secret`, `sr-admin/sr-admin-secret` |
+
+Wait ~20 seconds for `kafka-init` to complete user and topic provisioning.
+
+### Verify Kafka SASL auth
+
+```bash
+# Requires kcat (kafkacat)
+kcat -b localhost:19092 \
+     -X security.protocol=SASL_PLAINTEXT \
+     -X sasl.mechanism=SCRAM-SHA-256 \
+     -X sasl.username=admin -X sasl.password=admin-secret \
+     -L
+```
+
+### Verify Schema Registry basic auth
+
+```bash
+# Should return []
+curl -u sr-reader:sr-reader-secret http://localhost:18081/subjects
+```
+
+### Run gated connectivity IT tests
+
+```bash
+cd backend && ./gradlew test -Dsasl.test.enabled=true \
+  --tests "it.dls.infrastructure.kafka.KafkaConnectivityAdapterIT"
+```
+
+Expected: 6 tests pass — 2 plaintext + 4 SASL/SR gated.
+
+### Stop the test stack
+
+```bash
+docker compose -f docker/docker-compose.sasl-test.yml down
+```
 
 ---
 
