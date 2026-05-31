@@ -62,6 +62,14 @@ test('failed replay transitions message to REPLAY_FAILED and shows error toast',
   await page.getByRole('button', { name: 'Confirm Replay' }).click()
 
   await expect(page.getByText('Connection refused to kafka:9092')).toBeVisible()
+
+  // Dialog stays open on failure — close it by clicking the backdrop overlay (top-left corner, away from toast/dialog)
+  await page.locator('[aria-hidden="true"]').click({ position: { x: 10, y: 10 } })
+  await expect(page.getByRole('dialog')).not.toBeVisible()
+
+  // Reload to pick up the REPLAY_FAILED status from the mock (query cache still holds NEW after failed replay)
+  await page.reload()
+  await expect(page.getByTestId('status-badge')).toHaveText('REPLAY FAILED')
 })
 
 // REPLAY-008: after REPLAY_FAILED the Replay button remains visible (retry is possible)

@@ -141,3 +141,39 @@ test('cancel closes the wizard', async ({ page }) => {
   await page.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.getByText('Step 1 of 3')).not.toBeVisible()
 })
+
+// REPLAY: when message has no decoded payload, wizard skips Step 2 (edit) entirely
+test('wizard skips edit step when message has no decoded payload', async ({ page }) => {
+  const rawMessage = {
+    ...baseMessage,
+    decodedPayload: null,
+    schemaId: null,
+  }
+
+  let currentStatus = 'NEW'
+  await page.route(`/api/messages/${MSG_ID}`, (route: Route) =>
+    route.fulfill({ json: { ...rawMessage, status: currentStatus } })
+  )
+  await page.route(`/api/messages/${MSG_ID}/replay`, (route: Route) => {
+    currentStatus = 'REPLAYED'
+    route.fulfill({ json: { success: true, targetTopic: 'orders', failureReason: null } })
+  })
+
+  await page.goto(`/messages/${MSG_ID}`)
+  await page.getByTestId('replay-button').click()
+
+  const dialog = page.getByRole('dialog')
+
+  // Step 1 — review topic
+  await expect(dialog.getByText('Step 1 of 3')).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+
+  // Step 2 should be skipped — we land directly on Step 3
+  await expect(dialog.getByText('Step 3 of 3')).toBeVisible()
+  await expect(dialog.getByText('Step 2 of 3')).not.toBeVisible()
+
+  // Confirm replay completes successfully
+  await page.getByRole('button', { name: 'Confirm Replay' }).click()
+  await expect(page.getByText('Replay successful')).toBeVisible()
+  await expect(page.getByTestId('status-badge')).toHaveText('REPLAYED')
+})
