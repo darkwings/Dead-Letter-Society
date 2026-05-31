@@ -1,4 +1,4 @@
-# SASL/SCRAM Kafka + Basic-auth Schema Registry — connectivity test stack.
+# SASL/SCRAM Kafka + Basic-auth Schema Registry + AKHQ — connectivity test stack.
 # Ports intentionally offset from dev stack to allow both running simultaneously.
 #
 # Kafka credentials (SCRAM-SHA-256, external listener localhost:19092):
@@ -8,6 +8,8 @@
 # Schema Registry HTTP credentials (localhost:18081):
 #   sr-admin  / sr-admin-secret   — role: admin
 #   sr-reader / sr-reader-secret  — role: reader
+#
+# AKHQ UI: http://localhost:18085
 #
 # Usage:
 #   docker compose -f docker/docker-compose.sasl-test.yml up -d
@@ -132,3 +134,30 @@ services:
       SCHEMA_REGISTRY_AUTHENTICATION_ROLES: admin,reader
       SCHEMA_REGISTRY_OPTS: >-
         -Djava.security.auth.login.config=/etc/schema-registry/jaas.conf
+
+  # ── AKHQ ──────────────────────────────────────────────────────────────────────
+  #
+  # Connects to Kafka via INTERNAL (PLAINTEXT) — no SASL needed from within Docker network.
+  # Connects to Schema Registry via basic auth (sr-reader).
+
+  akhq:
+    image: tchiotludo/akhq:0.25.0
+    container_name: dls-sasl-akhq
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      schema-registry:
+        condition: service_started
+    ports:
+      - "18085:8080"
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            dls-sasl:
+              properties:
+                bootstrap.servers: "kafka:9092"
+              schema-registry:
+                url: "http://schema-registry:8081"
+                basic-auth-username: "sr-reader"
+                basic-auth-password: "sr-reader-secret"

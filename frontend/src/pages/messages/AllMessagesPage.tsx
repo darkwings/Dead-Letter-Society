@@ -120,6 +120,18 @@ export default function AllMessagesPage() {
         </div>
       </div>
 
+      {appliedStatus !== 'DISCARDED' && (
+        <p className="t-small" style={{ color: 'hsl(var(--muted-foreground))', marginBottom: 12 }}>
+          Discarded messages are hidden.{' '}
+          <button
+            className="btn btn-ghost"
+            style={{ height: 'auto', padding: 0, fontSize: 'inherit', color: 'hsl(var(--primary))' }}
+            onClick={() => { setStatusFilter('DISCARDED'); setAppliedStatus('DISCARDED'); setPage(0) }}
+          >
+            Show discarded
+          </button>
+        </p>
+      )}
       {isLoading ? (
         <p className="t-small">Loading…</p>
       ) : messages.length === 0 ? (

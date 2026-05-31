@@ -305,6 +305,23 @@ export default function MessageListPage() {
           </div>
         </div>
 
+        {appliedFilters.status !== 'DISCARDED' && (
+          <p className="t-small" style={{ color: 'hsl(var(--muted-foreground))', marginBottom: 12 }}>
+            Discarded messages are hidden.{' '}
+            <button
+              className="btn btn-ghost"
+              style={{ height: 'auto', padding: 0, fontSize: 'inherit', color: 'hsl(var(--primary))' }}
+              onClick={() => {
+                setStatusFilter('DISCARDED')
+                setPage(0)
+                setSelectedIds(new Set())
+                setAppliedFilters({ status: 'DISCARDED', from: appliedFilters.from, to: appliedFilters.to, partition: appliedFilters.partition })
+              }}
+            >
+              Show discarded
+            </button>
+          </p>
+        )}
         {isLoading ? (
           <p className="t-small">Loading…</p>
         ) : messages.length === 0 ? (

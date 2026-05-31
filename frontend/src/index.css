@@ -48,8 +48,8 @@
   --info-muted: 211 50% 18%;
 
   /* message statuses — distinguishable at glance */
-  --status-new: 220 10% 52%;
-  --status-new-bg: 220 10% 18%;
+  --status-new: 36 85% 58%;
+  --status-new-bg: 36 55% 16%;
 
   --status-under-review: 211 72% 58%;
   --status-under-review-bg: 211 55% 18%;
@@ -57,8 +57,8 @@
   --status-replayed: 148 50% 50%;
   --status-replayed-bg: 148 38% 14%;
 
-  --status-discarded: 220 6% 38%;
-  --status-discarded-bg: 220 8% 14%;
+  --status-discarded: 358 62% 58%;
+  --status-discarded-bg: 358 45% 16%;
 
   --status-replay-failed: 358 62% 58%;
   --status-replay-failed-bg: 358 45% 16%;
@@ -106,14 +106,14 @@
   --warning-muted: 36 90% 92%;
   --info: 211 70% 48%;
   --info-muted: 211 80% 94%;
-  --status-new: 220 12% 42%;
-  --status-new-bg: 220 12% 92%;
+  --status-new: 36 80% 40%;
+  --status-new-bg: 36 85% 92%;
   --status-under-review: 211 72% 48%;
   --status-under-review-bg: 211 80% 94%;
   --status-replayed: 148 50% 38%;
   --status-replayed-bg: 148 50% 92%;
-  --status-discarded: 220 8% 55%;
-  --status-discarded-bg: 220 10% 93%;
+  --status-discarded: 358 65% 50%;
+  --status-discarded-bg: 358 70% 94%;
   --status-replay-failed: 358 65% 50%;
   --status-replay-failed-bg: 358 70% 94%;
   --code-bg: 220 18% 97%;
@@ -207,27 +207,27 @@
 
 /* badges */
 .dls .badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  height: 18px; padding: 0 7px; border-radius: 999px;
-  font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 20px; padding: 0 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
   border: 1px solid transparent; line-height: 1;
 }
-.dls .badge-dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; }
+.dls .badge-dot { width: 7px; height: 7px; border-radius: 999px; display: inline-block; flex-shrink: 0; }
 
 /* status badges */
-.dls .s-new { color: hsl(var(--status-new)); background: hsl(var(--status-new-bg)); border-color: hsl(var(--status-new) / 0.25); }
+.dls .s-new { color: hsl(var(--status-new)); background: hsl(var(--status-new-bg)); border-color: hsl(var(--status-new) / 0.45); }
 .dls .s-new .badge-dot { background: hsl(var(--status-new)); }
 
-.dls .s-under-review { color: hsl(var(--status-under-review)); background: hsl(var(--status-under-review-bg)); border-color: hsl(var(--status-under-review) / 0.3); }
+.dls .s-under-review { color: hsl(var(--status-under-review)); background: hsl(var(--status-under-review-bg)); border-color: hsl(var(--status-under-review) / 0.45); }
 .dls .s-under-review .badge-dot { background: hsl(var(--status-under-review)); }
 
-.dls .s-replayed { color: hsl(var(--status-replayed)); background: hsl(var(--status-replayed-bg)); border-color: hsl(var(--status-replayed) / 0.3); }
+.dls .s-replayed { color: hsl(var(--status-replayed)); background: hsl(var(--status-replayed-bg)); border-color: hsl(var(--status-replayed) / 0.45); }
 .dls .s-replayed .badge-dot { background: hsl(var(--status-replayed)); }
 
-.dls .s-discarded { color: hsl(var(--status-discarded)); background: hsl(var(--status-discarded-bg)); border-color: hsl(var(--status-discarded) / 0.25); text-decoration: line-through; text-decoration-color: hsl(var(--status-discarded) / 0.7); text-decoration-thickness: 1px; }
+.dls .s-discarded { color: hsl(var(--status-discarded)); background: hsl(var(--status-discarded-bg)); border-color: hsl(var(--status-discarded) / 0.35); text-decoration: line-through; text-decoration-color: hsl(var(--status-discarded) / 0.7); text-decoration-thickness: 1px; }
 .dls .s-discarded .badge-dot { background: hsl(var(--status-discarded)); }
 
-.dls .s-replay-failed { color: hsl(var(--status-replay-failed)); background: hsl(var(--status-replay-failed-bg)); border-color: hsl(var(--status-replay-failed) / 0.3); }
+.dls .s-replay-failed { color: hsl(var(--status-replay-failed)); background: hsl(var(--status-replay-failed-bg)); border-color: hsl(var(--status-replay-failed) / 0.45); }
 .dls .s-replay-failed .badge-dot { background: hsl(var(--status-replay-failed)); }
 
 /* role badges */
