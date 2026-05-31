@@ -72,20 +72,21 @@ export default function DashboardPage() {
     queryFn: () => apiFetch<SparklinePoint[]>('/api/dashboard/sparkline?days=7'),
   })
 
-  const { data: clusters = [] } = useQuery({
+  const { data: clusters = [], isLoading: loadingClusters } = useQuery({
     queryKey: ['clusters'],
     queryFn: () => apiFetch<ClusterItem[]>('/api/clusters'),
   })
 
+  const clusterIds = clusters.map(c => c.id)
 
   const dlqQueries = useQuery({
-    queryKey: ['all-dlq-configs'],
+    queryKey: ['all-dlq-configs', clusterIds],
     queryFn: async () => {
       const all: (DlqConfigItem & { clusterName: string; newCount: number })[] = []
       for (const cluster of clusters) {
         const configs = await apiFetch<DlqConfigItem[]>(`/api/clusters/${cluster.id}/dlq-configs`)
         for (const cfg of configs) {
-          const msgs = await apiFetch<{ total: number }>(`/api/dlq-configs/${cfg.id}/messages?status=NEW&size=0&page=0`)
+          const msgs = await apiFetch<{ total: number }>(`/api/dlq-configs/${cfg.id}/messages?status=NEW&size=1&page=0`)
           all.push({ ...cfg, clusterName: cluster.name, newCount: msgs.total })
         }
       }
@@ -156,8 +157,12 @@ export default function DashboardPage() {
 
         <div className="card" style={{ padding: 20 }}>
           <p className="t-h4" style={{ marginBottom: 12 }}>DLQ Status</p>
-          {dlqQueries.isLoading ? (
+          {loadingClusters || dlqQueries.isLoading ? (
             <p className="t-small">Loading…</p>
+          ) : dlqQueries.isError ? (
+            <p className="t-small" style={{ color: 'hsl(var(--destructive))' }}>
+              {(dlqQueries.error as Error)?.message ?? 'Failed to load DLQ configs'}
+            </p>
           ) : (
             <div style={{ overflow: 'auto', maxHeight: 180 }}>
               <table className="table" style={{ fontSize: 12 }}>
