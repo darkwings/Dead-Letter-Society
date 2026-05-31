@@ -16,7 +16,7 @@ COUNT="${2:-20}"
 
 KAFKA_CONTAINER="dls-dev-kafka"
 SR_CONTAINER="dls-dev-schema-registry"
-BROKER_INTERNAL="dls-dev-kafka:9092"   # used from within Docker network
+BROKER_INTERNAL="kafka:29092"          # INTERNAL listener — used from SR container within Docker network
 SR_URL="http://localhost:8081"         # exposed on host
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
@@ -88,15 +88,10 @@ else
 fi
 
 # ── build messages ────────────────────────────────────────────────────────────
-# Line format (tab-delimited):  HEADERS<TAB>KEY<TAB>JSON_VALUE
-#
-# Headers are pipe-separated pairs:  header1:val1|header2:val2|...
-# Both headers.delimiter and key.separator are TAB; the reader splits on the
-# first TAB for headers, then on the first TAB of the remainder for the key.
-#
 echo -e "${YELLOW}Building ${COUNT} messages...${NC}"
 TMPFILE=$(mktemp)
-trap "rm -f $TMPFILE" EXIT
+TMPFILE_AVRO=$(mktemp)
+trap "rm -f $TMPFILE $TMPFILE_AVRO" EXIT
 
 for i in $(seq 1 "$COUNT"); do
   ORDER_ID="ORD-$(( 100000 + RANDOM % 900000 ))"
@@ -124,7 +119,14 @@ for i in $(seq 1 "$COUNT"); do
 |x-exception-message:${EX_MSG}|x-original-partition:${ORIG_PARTITION}\
 |x-original-offset:${ORIG_OFFSET}|x-retry-count:${RETRY_COUNT}"
 
-  printf '%s\t%s\t%s\n' "$HEADERS" "$ORDER_ID" "$PAYLOAD" >> "$TMPFILE"
+  # JSON path: HEADERS<TAB>KEY<TAB>VALUE
+  # headers.separator defaults to comma; headers.key.separator=: (explicit)
+  HEADERS_CSV=$(echo "$HEADERS" | tr '|' ',')
+  printf '%s\t%s\t%s\n' "$HEADERS_CSV" "$ORDER_ID" "$PAYLOAD" >> "$TMPFILE"
+  # Avro path: KEY<TAB>VALUE  (SchemaMessageReader in cp-schema-registry does not honour
+  # custom headers.separator / headers.key.separator — produces a parse error)
+  printf '%s\t%s\n' "$ORDER_ID" "$PAYLOAD" >> "$TMPFILE_AVRO"
+
   echo -e "  ${GREEN}[${i}/${COUNT}]${NC} ${ORDER_ID}  ${CUSTOMER}  ${QTY}x ${SKU}  ${EX_CLASS##*.}"
 done
 
@@ -132,31 +134,29 @@ done
 echo
 echo -e "${YELLOW}Producing to '${TOPIC}'...${NC}"
 
-# Common reader properties for both producers
-READER_PROPS=(
-  --property parse.key=true
-  --property key.separator=$'\t'
-  --property parse.headers=true
-  --property headers.delimiter=$'\t'
-  --property headers.separator='|'
-  --property headers.key.separator=:
-)
-
 if [[ "$USE_AVRO" == "true" ]]; then
-  # kafka-avro-console-producer is in the schema-registry container.
-  # It connects to Kafka via the internal Docker network.
+  # kafka-avro-console-producer lives in the schema-registry container and connects
+  # to Kafka via the internal Docker network (INTERNAL listener on kafka:29092).
+  # Headers are omitted: SchemaMessageReader ignores custom headers.separator /
+  # headers.key.separator properties and the parsing fails with multi-header blocks.
   docker exec -i "$SR_CONTAINER" kafka-avro-console-producer \
     --bootstrap-server "$BROKER_INTERNAL" \
     --topic "$TOPIC" \
     --property schema.registry.url=http://localhost:8081 \
     --property value.schema.id="$SCHEMA_ID" \
     --property key.serializer=org.apache.kafka.common.serialization.StringSerializer \
-    "${READER_PROPS[@]}" < "$TMPFILE"
+    --property parse.key=true \
+    --property key.separator=$'\t' \
+    < "$TMPFILE_AVRO"
 else
   docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
     --bootstrap-server localhost:9092 \
     --topic "$TOPIC" \
-    "${READER_PROPS[@]}" < "$TMPFILE"
+    --property parse.key=true \
+    --property key.separator=$'\t' \
+    --property parse.headers=true \
+    --property "headers.key.separator=:" \
+    < "$TMPFILE"
 fi
 
 echo -e "${GREEN}Done.${NC}  produced=${COUNT}  topic=${TOPIC}"
