@@ -6,6 +6,7 @@ public record CreateClusterRequest(
     String name,
     String bootstrapServers,
     KafkaSecurityProtocol securityProtocol,
+    Boolean tlsEnabled,
     String username,
     String password,
     String keystorePem,
