@@ -1,138 +1,138 @@
-# TERMS.md — Glossario Dead Letter Society
+# TERMS.md — Dead Letter Society Glossary
 
-Terminologia canonica del progetto. Tutti i documenti, il codice, i test e le comunicazioni DEVONO usare questi termini senza drift.
+Canonical terminology for the project. All documents, code, tests, and communications MUST use these terms without drift.
 
 ---
 
 ## A
 
 **All Messages**
-Vista cross-DLQ che mostra tutti i `DlqMessage` accessibili all'utente corrente, indipendentemente dalla DLQ Config di appartenenza. Supporta filtro per status. Accessibile da tutti gli utenti autenticati. Navigabile dal link globale "All Messages" nella sidebar.
+Cross-DLQ view showing all `DlqMessage` records accessible to the current user, regardless of which DLQ Config they belong to. Supports filtering by status. Accessible to all authenticated users. Navigable from the "All Messages" global link in the sidebar.
 
 **ADMIN**
-Ruolo globale. Utente con pieno accesso all'applicazione: gestisce cluster, DLQ config, utenti. Ha accesso implicito in lettura e replay a tutte le DLQ config. Possono esistere più ADMIN. Il primo utente registrato in modalità standalone diventa automaticamente ADMIN.
+Global role. User with full application access: manages clusters, DLQ configs, and users. Has implicit read and replay access to all DLQ configs. Multiple ADMINs can exist. The first user registered in standalone mode automatically becomes ADMIN.
 
-**Audit Record** → vedi *Replay Audit Record*
+**Audit Record** → see *Replay Audit Record*
 
 ---
 
 ## B
 
 **Badge Count**
-Indicatore numerico visualizzato nella Sidebar accanto al nome di ogni DLQ Config. Mostra il numero di messaggi con status `NEW` nella DLQ Config. Assente (zero o muted dot) se non ci sono messaggi NEW.
+Numeric indicator shown in the Sidebar next to each DLQ Config name. Displays the number of messages with status `NEW` in the DLQ Config. Absent (zero or muted dot) when there are no NEW messages.
 
 **Batch Size**
-Numero massimo di messaggi scaricati da Kafka in un singolo Fetch. Configurabile per DLQ Config. Default: 500.
+Maximum number of messages downloaded from Kafka in a single Fetch. Configurable per DLQ Config. Default: 500.
 
 **Bootstrap Servers**
-Lista di broker Kafka nel formato `host:port,...` usata per la connessione al cluster.
+List of Kafka brokers in `host:port,...` format used to connect to the cluster.
 
 ---
 
 ## C
 
-**Cluster** → vedi *Kafka Cluster*
+**Cluster** → see *Kafka Cluster*
 
 **Committed Offset**
-L'ultimo offset consumato con successo e persistito nel DB dell'applicazione per una specifica coppia (DLQ Config × Partizione). Non viene committato sul broker Kafka.
+The last successfully consumed offset persisted in the application database for a specific (DLQ Config × Partition) pair. Not committed to the Kafka broker.
 
 **Confluent Schema Registry**
-Implementazione di Schema Registry supportata nel MVP. Espone API REST per registrazione e recupero degli schema (Avro, Protobuf, JSON Schema).
+The Schema Registry implementation supported in the MVP. Exposes a REST API for registering and retrieving schemas (Avro, Protobuf, JSON Schema).
 
 **Cron Expression**
-Stringa in formato cron (es. `0 */15 * * * ?`) che definisce la frequenza del Fetch schedulato. Configurabile per DLQ Config con preset predefiniti come shortcut.
+A cron-format string (e.g. `0 */15 * * * ?`) that defines the frequency of a scheduled Fetch. Configurable per DLQ Config with predefined presets as shortcuts.
 
 ---
 
 ## D
 
 **Dashboard**
-Schermata home per gli utenti ADMIN. Mostra Summary Cards (conteggi per status), DLQ Status Table (stato per DLQ Config) e Replay Rate Sparkline (grafico replay rate ultimi 7 giorni). Accessibile esclusivamente agli ADMIN; gli altri utenti vengono reindirizzati alla lista cluster.
+Home screen for ADMIN users. Displays Summary Cards (counts by status), DLQ Status Table (state per DLQ Config), and Replay Rate Sparkline (replay rate chart for the last 7 days). Accessible exclusively to ADMINs; other users are redirected to the cluster list.
 
 **Dead Letter Queue (DLQ)**
-Topic Kafka su cui i messaggi vengono instradati automaticamente quando il consumer non riesce a processarli. I messaggi in DLQ sono candidati all'ispezione e all'eventuale Replay.
+A Kafka topic where messages are automatically routed when a consumer fails to process them. Messages in a DLQ are candidates for inspection and potential Replay.
 
 **Decoded Payload**
-La rappresentazione leggibile del payload di un messaggio, ottenuta decodificando i byte raw tramite lo Schema Registry. Formato: JSON. Può essere `null` se lo schema non è disponibile o il payload è malformato.
+The human-readable representation of a message payload, obtained by decoding the raw bytes via the Schema Registry. Format: JSON. May be `null` if the schema is unavailable or the payload is malformed.
 
 **DLQ Config (Dead Letter Queue Configuration)**
-Configurazione che rappresenta il contratto di monitoraggio tra l'applicazione e un topic DLQ su un Kafka Cluster. Contiene: topic name, fetch config, retention policy, assegnazioni utenti, partition offsets. È l'unità di accesso su cui vengono assegnati i ruoli VIEWER/OPERATOR.
+A configuration that represents the monitoring contract between the application and a DLQ topic on a Kafka Cluster. Contains: topic name, fetch config, retention policy, user assignments, partition offsets. The access unit on which VIEWER/OPERATOR roles are assigned.
 
-**DLQ Message** → vedi *Message*
+**DLQ Message** → see *Message*
 
-**DLQ Role** → vedi *Role*
+**DLQ Role** → see *Role*
 
-**Download** → vedi *Fetch*
+**Download** → see *Fetch*
 
-**Download Mode** → vedi *Fetch Mode*
+**Download Mode** → see *Fetch Mode*
 
 ---
 
 ## E
 
 **Encryption Key**
-Chiave AES-256 usata per cifrare le credenziali sensibili (es. password Kafka, certificati) nel DB. Letta da una variabile d'ambiente al runtime dell'applicazione.
+AES-256 key used to encrypt sensitive credentials (e.g. Kafka passwords, certificates) in the database. Read from an environment variable at application runtime.
 
 ---
 
 ## F
 
 **Fetch**
-Operazione di download dei messaggi da un topic DLQ Kafka verso il DB dell'applicazione. Può essere Scheduled Fetch o On-Demand Fetch. Ogni Fetch parte dal Committed Offset + 1 della partizione interessata.
+Operation that downloads messages from a Kafka DLQ topic into the application database. Can be a Scheduled Fetch or an On-Demand Fetch. Each Fetch starts from the Committed Offset + 1 of the affected partition.
 
 **Fetch Config**
-Parte della DLQ Config che definisce le modalità di fetch: Fetch Mode, Cron Expression (se schedulato), Batch Size.
+Part of the DLQ Config that defines fetch behavior: Fetch Mode, Cron Expression (if scheduled), Batch Size.
 
 **Fetch Mode**
-Modalità di esecuzione del Fetch per una DLQ Config. Valori:
-- `SCHEDULED` — solo fetch automatico a intervalli cron
-- `ON_DEMAND` — solo fetch manuale avviato da un utente
-- `BOTH` — entrambi coesistono
+Execution mode for a DLQ Config's Fetch. Values:
+- `SCHEDULED` — automatic fetch only, at cron intervals
+- `ON_DEMAND` — manual fetch only, triggered by a user
+- `BOTH` — both modes coexist
 
 ---
 
 ## G
 
-**Gap (di offset)**
-Situazione in cui messaggi tra il Committed Offset e l'earliest offset disponibile su Kafka sono stati eliminati (per compattazione o retention Kafka). Il sistema logga il gap e riparte dall'earliest disponibile.
+**Gap (offset gap)**
+A situation where messages between the Committed Offset and the earliest available offset on Kafka have been deleted (by compaction or Kafka retention). The system logs the gap and restarts from the earliest available offset.
 
-**Global Role** → vedi *Role*
+**Global Role** → see *Role*
 
 ---
 
 ## H
 
 **Headers**
-Metadati chiave-valore associati a un messaggio Kafka. Includono informazioni tecniche come `x-original-topic`, `x-exception-message`, ecc. Preservati integralmente durante il Replay; aggiunto `x-dls-replayed-at` e `x-dls-replayed-by`.
+Key-value metadata attached to a Kafka message. Include technical information such as `x-original-topic`, `x-exception-message`, etc. Preserved in full during Replay; `x-dls-replayed-at` and `x-dls-replayed-by` are added.
 
 ---
 
 ## I
 
-**Ingestion** → vedi *Fetch*
+**Ingestion** → see *Fetch*
 
 ---
 
 ## K
 
 **Kafka Cluster**
-Insieme di broker Kafka identificato da Bootstrap Servers, configurazione di sicurezza e Schema Registry. Unità di registrazione nell'applicazione. A ogni Kafka Cluster è associato un solo Schema Registry.
+A set of Kafka brokers identified by Bootstrap Servers, security configuration, and Schema Registry. The registration unit in the application. Each Kafka Cluster has exactly one Schema Registry.
 
 **Kafka Security Config**
-Configurazione di autenticazione e crittografia per la connessione a un Kafka Cluster. Protocolli supportati: `PLAINTEXT`, `SASL_PLAIN`, `SASL_SCRAM_SHA_256`, `SASL_SCRAM_SHA_512`, `SSL`.
+Authentication and encryption configuration for connecting to a Kafka Cluster. Supported protocols: `PLAINTEXT`, `SASL_PLAIN`, `SASL_SCRAM_SHA_256`, `SASL_SCRAM_SHA_512`, `SSL`.
 
 ---
 
 ## M
 
 **Message**
-Un messaggio Kafka scaricato da una DLQ e persistito nel DB dell'applicazione. Contiene: partition, offset, timestamp, message key, raw payload, decoded payload, headers, status, note thread, replay audit record.
+A Kafka message downloaded from a DLQ and persisted in the application database. Contains: partition, offset, timestamp, message key, raw payload, decoded payload, headers, status, note thread, replay audit record.
 
 **Message Key**
-La chiave opzionale di un messaggio Kafka (bytes). Memorizzata nel DB per riferimento.
+The optional key of a Kafka message (bytes). Stored in the database for reference.
 
 **Message Status**
-Stato del ciclo di vita di un Message nel sistema. Valori e transizioni:
+The lifecycle state of a Message in the system. Values and transitions:
 ```
 NEW → UNDER_REVIEW → REPLAYED
                    ↘ DISCARDED
@@ -144,152 +144,152 @@ NEW → UNDER_REVIEW → REPLAYED
 ## N
 
 **Note**
-Singolo commento testuale aggiunto da un utente a un Message. Può contenere un Ticket Reference opzionale. Le note sono immutabili dopo la creazione.
+A single text comment added by a user to a Message. May contain an optional Ticket Reference. Notes are immutable after creation.
 
 **Note Thread**
-Sequenza ordinata di Note associate a un Message. Equivalente a un thread di commenti.
+An ordered sequence of Notes associated with a Message. Equivalent to a comment thread.
 
 ---
 
 ## O
 
 **OIDC (OpenID Connect)**
-Protocollo di autenticazione federata. In modalità OIDC, l'identità dell'utente è gestita da un Identity Provider esterno (Keycloak, Okta, ecc.). Il ruolo ADMIN può essere mappato da un claim nel JWT. I ruoli DLQ (VIEWER/OPERATOR) sono sempre gestiti dall'applicazione.
+Federated authentication protocol. In OIDC mode, the user's identity is managed by an external Identity Provider (Keycloak, Okta, etc.). The ADMIN role can be mapped from a claim in the JWT. DLQ roles (VIEWER/OPERATOR) are always managed by the application.
 
 **On-Demand Fetch**
-Fetch avviato manualmente da qualsiasi utente con accesso alla DLQ Config. Viene rifiutato se uno Scheduled Fetch è in esecuzione sulla stessa DLQ Config.
+A Fetch triggered manually by any user with access to the DLQ Config. Rejected if a Scheduled Fetch is running on the same DLQ Config.
 
 **OPERATOR**
-DLQ Role. Può: leggere messaggi, aggiungere note, eseguire Replay, modificare il Decoded Payload prima del Replay (con validazione schema), fare override del Replay Topic. Assegnato per-utente su una specifica DLQ Config.
+DLQ Role. Can: read messages, add notes, execute Replay, edit the Decoded Payload before Replay (with schema validation), override the Replay Topic. Assigned per-user on a specific DLQ Config.
 
 ---
 
 ## P
 
 **Partition**
-Suddivisione di un topic Kafka. Ogni partizione ha il proprio Committed Offset nel DB dell'applicazione.
+A subdivision of a Kafka topic. Each partition has its own Committed Offset in the application database.
 
 **Partition Offset**
-Record nel DB che traccia il Committed Offset per una coppia (DLQ Config × Partizione). Stato: `ACTIVE` o `INACTIVE`.
+A database record tracking the Committed Offset for a (DLQ Config × Partition) pair. Status: `ACTIVE` or `INACTIVE`.
 
 **Partition Reconciliation**
-Operazione eseguita all'inizio di ogni Fetch che confronta le partizioni note nel DB con quelle effettive sul broker Kafka. Nuove partizioni vengono aggiunte con offset `-1` (earliest). Partizioni rimosse vengono marcate `INACTIVE`.
+An operation performed at the start of each Fetch that compares the partitions known in the database with the actual partitions on the Kafka broker. New partitions are added with offset `-1` (earliest). Removed partitions are marked `INACTIVE`.
 
-**Payload** → vedi *Raw Payload* o *Decoded Payload*
+**Payload** → see *Raw Payload* or *Decoded Payload*
 
 ---
 
 ## R
 
 **Bulk Replay**
-Operazione di Replay semplificata applicata a più messaggi selezionati contemporaneamente nella Message List. Il target è il Default Replay Topic della DLQ Config. Non include editing payload né wizard multi-step. Produce un Replay Audit Record per ogni messaggio. Solo OPERATOR e ADMIN.
+A simplified Replay operation applied to multiple messages selected simultaneously in the Message List. The target is the Default Replay Topic of the DLQ Config. Does not include payload editing or a multi-step wizard. Produces a Replay Audit Record per message. OPERATOR and ADMIN only.
 
 **Raw Payload**
-I byte originali del payload di un messaggio Kafka, conservati nel DB senza modifiche.
+The original bytes of a Kafka message payload, stored in the database without modification.
 
 **Replay**
-Operazione di ripubblicazione di un Message sul Replay Topic. Eseguita tramite il Replay Wizard. Solo OPERATOR (e ADMIN implicito). Il payload può essere modificato (con validazione schema) prima della conferma.
+The operation of republishing a Message to the Replay Topic. Executed through the Replay Wizard. OPERATOR only (and implicit ADMIN). The payload can be edited (with schema validation) before confirmation.
 
 **Replay Audit Record**
-Record immutabile che documenta l'esecuzione di un Replay: chi ha eseguito il replay, quando, su quale topic, se il payload è stato modificato, numero di tentativi, eventuale motivo di fallimento.
+An immutable record documenting a Replay execution: who performed the replay, when, on which topic, whether the payload was edited, number of attempts, and optional failure reason.
 
 **Replay Failed**
-Stato di un Message in cui il Replay è stato tentato ma la pubblicazione su Kafka è fallita. L'utente può ritentare il Replay (transizione → `UNDER_REVIEW`).
+A Message state in which Replay was attempted but publishing to Kafka failed. The user can retry the Replay (transition → `UNDER_REVIEW`).
 
 **Replay Topic**
-Il topic Kafka su cui viene ripubblicato un Message durante il Replay. Determinato in ordine di priorità:
-1. Override esplicito impostato da OPERATOR nella DLQ Config o durante il wizard
-2. Valore dell'header `x-original-topic` (o equivalente) nel messaggio
+The Kafka topic to which a Message is republished during Replay. Determined in priority order:
+1. Explicit override set by OPERATOR in the DLQ Config or during the wizard
+2. Value of the `x-original-topic` header (or equivalent) in the message
 
 **Replay Rate**
-Metrica che esprime la percentuale di messaggi Replayed rispetto al totale dei messaggi in un dato periodo. Formula: `REPLAYED / (REPLAYED + DISCARDED + UNDER_REVIEW + REPLAY_FAILED + NEW)`. Visualizzata nel Dashboard come Sparkline Chart.
+A metric expressing the percentage of Replayed messages out of the total messages in a given period. Formula: `REPLAYED / (REPLAYED + DISCARDED + UNDER_REVIEW + REPLAY_FAILED + NEW)`. Displayed in the Dashboard as a Sparkline Chart.
 
 **Replay Wizard**
-Interfaccia multi-step guidata per l'esecuzione del Replay di un singolo messaggio. Include: anteprima messaggio, selezione/conferma Replay Topic, editing opzionale del Decoded Payload, validazione schema, conferma finale. Per replay di massa usa → *Bulk Replay*.
+A guided multi-step interface for executing Replay of a single message. Includes: message preview, Replay Topic selection/confirmation, optional Decoded Payload editing, schema validation, final confirmation. For bulk replay use → *Bulk Replay*.
 
 **Retention Policy**
-Politica di pulizia automatica dei messaggi nel DB. Configurabile per DLQ Config. Può essere basata su: numero di giorni (`maxAgeDays`) o numero massimo di messaggi (`maxCount`).
+Automatic message cleanup policy in the database. Configurable per DLQ Config. Can be based on: number of days (`maxAgeDays`) or maximum message count (`maxCount`).
 
 **Role**
-Determinano i permessi nell'applicazione. Due livelli:
-- **Global Role** (`ADMIN` / `USER`): definisce i permessi globali sull'applicazione
-- **DLQ Role** (`VIEWER` / `OPERATOR`): definisce i permessi su una specifica DLQ Config
+Determines permissions in the application. Two levels:
+- **Global Role** (`ADMIN` / `USER`): defines global application permissions
+- **DLQ Role** (`VIEWER` / `OPERATOR`): defines permissions on a specific DLQ Config
 
 ---
 
 ## S
 
 **Settings**
-Area dell'applicazione raggiungibile tramite `/settings`. Contiene: link alla gestione cluster, link alla gestione utenti (Members & Roles), toggle light/dark mode. Navigazione a sinistra con sezioni "Clusters" e "Members & Roles".
+Application area reachable via `/settings`. Contains: link to cluster management, link to user management (Members & Roles), light/dark mode toggle. Left navigation with "Clusters" and "Members & Roles" sections.
 
-**Sidebar Badge** → vedi *Badge Count*
+**Sidebar Badge** → see *Badge Count*
 
 **Sparkline Chart**
-Grafico ad area miniaturizzato nel Dashboard che visualizza la Replay Rate giornaliera degli ultimi 7 giorni. Backend: `GET /api/dashboard/sparkline?days=7`.
+A miniaturized area chart in the Dashboard showing daily Replay Rate for the last 7 days. Backend: `GET /api/dashboard/sparkline?days=7`.
 
 **Summary Cards**
-Cinque card nel Dashboard che mostrano il conteggio totale dei messaggi per ciascuno status (NEW, UNDER_REVIEW, REPLAYED, DISCARDED, REPLAY_FAILED) su tutte le DLQ Config accessibili.
+Five cards in the Dashboard showing the total message count for each status (NEW, UNDER_REVIEW, REPLAYED, DISCARDED, REPLAY_FAILED) across all accessible DLQ Configs.
 
 **Schema**
-Definizione strutturata del formato di un payload. Registrata nel Schema Registry. Formati supportati: Avro, Protobuf, JSON Schema.
+A structured definition of a payload format. Registered in the Schema Registry. Supported formats: Avro, Protobuf, JSON Schema.
 
 **Schema Registry**
-Servizio esterno che gestisce gli schema dei messaggi Kafka. Utilizzato per Decode e validazione dei payload. Nel MVP: Confluent Schema Registry (uno per Kafka Cluster).
+An external service that manages Kafka message schemas. Used for payload decoding and validation. In the MVP: Confluent Schema Registry (one per Kafka Cluster).
 
 **Schema Validation**
-Verifica che un payload (raw o modificato) sia conforme allo schema registrato nel Schema Registry. Eseguita prima della conferma nel Replay Wizard quando il payload è stato modificato.
+Verification that a payload (raw or edited) conforms to the schema registered in the Schema Registry. Performed before confirmation in the Replay Wizard when the payload has been edited.
 
 **Scheduled Fetch**
-Fetch eseguito automaticamente dal sistema secondo una Cron Expression configurata nella DLQ Config.
+A Fetch executed automatically by the system according to a Cron Expression configured in the DLQ Config.
 
 **SSE (Server-Sent Events)**
-Meccanismo di notifica push server→client usato per le notifiche in-app. Il frontend si sottoscrive a un endpoint SSE per ricevere aggiornamenti in tempo reale (es. nuovo fetch completato, nuovi messaggi disponibili).
+Server-to-client push notification mechanism used for in-app notifications. The frontend subscribes to an SSE endpoint to receive real-time updates (e.g. new fetch completed, new messages available).
 
 **Standalone Mode**
-Modalità operativa dell'applicazione senza integrazione con un Identity Provider esterno. L'autenticazione usa username/password locali. Il primo utente registrato diventa ADMIN.
+Application operating mode without integration with an external Identity Provider. Authentication uses local username/password. The first registered user becomes ADMIN.
 
 ---
 
 ## T
 
 **Ticket Reference**
-Riferimento testuale opzionale a un ticket in un sistema esterno (es. `JIRA-1234`, `INC0012345`). Inserito manualmente dall'utente in una Nota.
+Optional text reference to a ticket in an external system (e.g. `JIRA-1234`, `INC0012345`). Manually entered by the user in a Note.
 
 **Topic**
-Canale di messaggistica su un Kafka Cluster. Le DLQ sono topic Kafka dedicati ai messaggi falliti.
+A messaging channel on a Kafka Cluster. DLQs are dedicated Kafka topics for failed messages.
 
 **Topic Browser**
-Funzionalità che, data una configurazione di un Kafka Cluster, interroga il broker in tempo reale e restituisce la lista dei topic disponibili. Il Topic Browser esclude i topic interni del broker (quelli il cui nome inizia con `_`) e i topic già configurati come DLQ Config sullo stesso cluster. Usato per assistere l'ADMIN nella selezione del Topic Name durante la creazione di una DLQ Config.
+A feature that, given a Kafka Cluster configuration, queries the broker in real time and returns the list of available topics. The Topic Browser excludes internal broker topics (those whose name starts with `_`) and topics already configured as DLQ Configs on the same cluster. Used to assist the ADMIN in selecting the Topic Name when creating a DLQ Config.
 
 **Topic Name**
-Il nome esatto di un topic Kafka configurato come DLQ in una DLQ Config. Immutabile dopo la creazione della DLQ Config. Il Topic Browser suggerisce nomi validi durante la creazione.
+The exact name of a Kafka topic configured as a DLQ in a DLQ Config. Immutable after the DLQ Config is created. The Topic Browser suggests valid names during creation.
 
 **Problem Detail**
-Formato standard di risposta per gli errori HTTP, definito da RFC 7807 (`application/problem+json`). Ogni risposta di errore dell'API include almeno: `type` (URI), `title`, `status`, `detail`. Le risposte con errori di validazione (HTTP 422) aggiungono un array `violations` con le violazioni per campo: `[{ "field": "...", "message": "..." }]`.
+Standard HTTP error response format, defined by RFC 7807 (`application/problem+json`). Every API error response includes at minimum: `type` (URI), `title`, `status`, `detail`. Validation error responses (HTTP 422) add a `violations` array with per-field violations: `[{ "field": "...", "message": "..." }]`.
 
 ---
 
 ## U
 
 **User**
-Utente registrato nell'applicazione. Ha un Global Role e può avere DLQ Role su una o più DLQ Config. Autenticato via modalità standalone (LOCAL) o via OIDC.
+A registered application user. Has a Global Role and may have DLQ Roles on one or more DLQ Configs. Authenticated via standalone mode (LOCAL) or OIDC.
 
 **User Assignment**
-Associazione tra un User e una DLQ Config con uno specifico DLQ Role (VIEWER/OPERATOR).
+Association between a User and a DLQ Config with a specific DLQ Role (VIEWER/OPERATOR).
 
 ---
 
 ## V
 
 **VIEWER**
-DLQ Role. Può: leggere messaggi, aggiungere note. Non può eseguire Replay. Assegnato per-utente su una specifica DLQ Config.
+DLQ Role. Can: read messages, add notes. Cannot execute Replay. Assigned per-user on a specific DLQ Config.
 
 ---
 
 ## X
 
 **`x-dls-replayed-at`**
-Header Kafka aggiunto dal sistema durante il Replay. Valore: timestamp ISO-8601 dell'operazione di replay.
+Kafka header added by the system during Replay. Value: ISO-8601 timestamp of the replay operation.
 
 **`x-dls-replayed-by`**
-Header Kafka aggiunto dal sistema durante il Replay. Valore: user ID o email dell'utente che ha eseguito il replay.
+Kafka header added by the system during Replay. Value: user ID or email of the user who executed the replay.
