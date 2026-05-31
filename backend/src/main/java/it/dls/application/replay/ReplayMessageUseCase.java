@@ -2,7 +2,6 @@ package it.dls.application.replay;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import it.dls.domain.cluster.KafkaClusterRepository;
-import it.dls.domain.cluster.SchemaRegistryAuthConfig;
 import it.dls.domain.dlqconfig.DlqConfigRepository;
 import it.dls.domain.message.MessageRepository;
 import it.dls.domain.message.MessageStatus;

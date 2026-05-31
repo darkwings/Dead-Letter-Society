@@ -141,7 +141,7 @@ class ReplayMessageUseCaseTest {
         var mapper = new ObjectMapper();
         var edited = mapper.readTree("{\"amount\":50.00}");
         var msg = message(MSG_ID, CONFIG_ID, MessageStatus.NEW,
-            Map.of("x-original-topic", "orders"), null);
+            Map.of("x-original-topic", "orders"), 7);
         var config = config(CONFIG_ID, CLUSTER_ID);
         var cluster = plaintextCluster(CLUSTER_ID); // no SR
         when(messageRepo.findById(MSG_ID)).thenReturn(Optional.of(msg));
