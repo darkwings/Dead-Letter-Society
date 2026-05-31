@@ -68,9 +68,27 @@ cd frontend && npx playwright test
 
 ## Producing Test Messages to a DLQ
 
-The `dls-dev-kafka` container ships with the standard Kafka CLI tools.
+Two helper scripts are available in `scripts/`:
 
-### Create a DLQ topic
+| Script | Purpose |
+|---|---|
+| `seed-dlq.sh [topic] [count]` | Produce N random order-failure messages (plain JSON or Avro if schema registered) |
+| `register-schema.sh [subject] [sr-url]` | Register the matching Avro schema in Schema Registry |
+
+### Quick start
+
+```bash
+# Plain JSON — no schema required
+./scripts/seed-dlq.sh orders.dlq 20
+
+# Avro — register schema first, then seed
+./scripts/register-schema.sh orders.dlq-value
+./scripts/seed-dlq.sh orders.dlq 20
+```
+
+`seed-dlq.sh` auto-detects whether a schema exists for `<topic>-value` and switches between plain JSON and Avro automatically.
+
+### Manual topic creation
 
 ```bash
 docker compose -f docker/docker-compose.dev.yml exec dls-dev-kafka \
@@ -78,45 +96,20 @@ docker compose -f docker/docker-compose.dev.yml exec dls-dev-kafka \
   --create --topic my-service.dlq --partitions 1 --replication-factor 1
 ```
 
-### Produce a plain JSON message
+### Produce a plain JSON message manually
 
-Messages are `key:value` pairs, one per line. Use `key.separator=:` and `parse.key=true`:
+Each line: `HEADERS<TAB>KEY<TAB>JSON_VALUE` — headers are `|`-separated `key:value` pairs.
 
 ```bash
-echo 'order-123:{"orderId":"order-123","status":"FAILED","reason":"payment_timeout"}' | \
+printf 'x-original-topic:my-service.events|x-correlation-id:abc-123\torder-123\t{"orderId":"order-123","status":"FAILED"}\n' | \
   docker compose -f docker/docker-compose.dev.yml exec -T dls-dev-kafka \
   kafka-console-producer --bootstrap-server localhost:9092 \
   --topic my-service.dlq \
   --property parse.key=true \
-  --property key.separator=:
-```
-
-### Produce multiple messages from a file
-
-Create `messages.txt` with one `key:json` payload per line, then:
-
-```bash
-docker compose -f docker/docker-compose.dev.yml exec -T dls-dev-kafka \
-  kafka-console-producer --bootstrap-server localhost:9092 \
-  --topic my-service.dlq \
-  --property parse.key=true \
-  --property key.separator=: < messages.txt
-```
-
-### Produce with custom headers
-
-`kafka-console-producer` supports headers in format `headerKey:headerValue,headerKey2:headerValue2` prepended before the message when `parse.headers=true` is set:
-
-```bash
-printf 'x-original-topic:my-service.events,x-correlation-id:abc-123\torder-123:{"orderId":"order-123","status":"FAILED"}\n' | \
-  docker compose -f docker/docker-compose.dev.yml exec -T dls-dev-kafka \
-  kafka-console-producer --bootstrap-server localhost:9092 \
-  --topic my-service.dlq \
-  --property parse.key=true \
-  --property key.separator=: \
+  --property key.separator=$'\t' \
   --property parse.headers=true \
-  --property headers.delimiter='\t' \
-  --property headers.separator=, \
+  --property headers.delimiter=$'\t' \
+  --property headers.separator='|' \
   --property headers.key.separator=:
 ```
 
@@ -145,9 +138,29 @@ Schema Registry runs on `http://localhost:8081`. DLS decodes messages using the 
 
 Subject naming follows **TopicNameStrategy**: `<topic>-value` for the value schema, `<topic>-key` for the key.
 
-### Register a JSON Schema
+### Using the seed script (recommended)
+
+`register-schema.sh` registers the Order Avro schema used by `seed-dlq.sh`:
 
 ```bash
+# Register schema for the orders.dlq topic
+./scripts/register-schema.sh orders.dlq-value
+
+# seed-dlq.sh automatically switches to Avro when the subject exists
+./scripts/seed-dlq.sh orders.dlq 20
+```
+
+### Register a schema manually
+
+```bash
+# Avro
+curl -s -X POST http://localhost:8081/subjects/my-service.dlq-value/versions \
+  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  -d '{
+    "schema": "{\"type\":\"record\",\"name\":\"FailedEvent\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"orderId\",\"type\":\"string\"},{\"name\":\"status\",\"type\":\"string\"},{\"name\":\"reason\",\"type\":\"string\"}]}"
+  }'
+
+# JSON Schema
 curl -s -X POST http://localhost:8081/subjects/my-service.dlq-value/versions \
   -H "Content-Type: application/vnd.schemaregistry.v1+json" \
   -d '{
@@ -158,37 +171,20 @@ curl -s -X POST http://localhost:8081/subjects/my-service.dlq-value/versions \
 
 Response returns the schema ID: `{"id":1}`
 
-### Register an Avro Schema
+### Inspect registered schemas
 
 ```bash
-curl -s -X POST http://localhost:8081/subjects/my-service.dlq-value/versions \
-  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-  -d '{
-    "schema": "{\"type\":\"record\",\"name\":\"FailedEvent\",\"namespace\":\"com.example\",\"fields\":[{\"name\":\"orderId\",\"type\":\"string\"},{\"name\":\"status\",\"type\":\"string\"},{\"name\":\"reason\",\"type\":\"string\"}]}"
-  }'
-```
-
-### List registered subjects and inspect a schema
-
-```bash
-# List all subjects
 curl -s http://localhost:8081/subjects
-
-# Get schema by ID
 curl -s http://localhost:8081/schemas/ids/1
-
-# List versions for a subject
-curl -s http://localhost:8081/subjects/my-service.dlq-value/versions
-
-# Get latest version of a subject
 curl -s http://localhost:8081/subjects/my-service.dlq-value/versions/latest
 ```
 
-### Produce a schema-encoded message (Avro)
+### Produce a schema-encoded message manually
 
-The `cp-schema-registry` container includes `kafka-avro-console-producer`, which encodes messages in Confluent wire format (magic byte + schema ID + Avro payload):
+The `dls-dev-schema-registry` container includes `kafka-avro-console-producer` and `kafka-json-schema-console-producer`:
 
 ```bash
+# Avro
 echo '{"orderId":"order-123","status":"FAILED","reason":"payment_timeout"}' | \
   docker compose -f docker/docker-compose.dev.yml exec -T dls-dev-schema-registry \
   kafka-avro-console-producer \
@@ -196,11 +192,8 @@ echo '{"orderId":"order-123","status":"FAILED","reason":"payment_timeout"}' | \
   --topic my-service.dlq \
   --property schema.registry.url=http://localhost:8081 \
   --property value.schema.id=1
-```
 
-### Produce a schema-encoded message (JSON Schema)
-
-```bash
+# JSON Schema
 echo '{"orderId":"order-123","status":"FAILED","reason":"payment_timeout"}' | \
   docker compose -f docker/docker-compose.dev.yml exec -T dls-dev-schema-registry \
   kafka-json-schema-console-producer \

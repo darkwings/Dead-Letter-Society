@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Registers an Avro schema in Redpanda Schema Registry.
+# Registers an Avro schema in Confluent Schema Registry.
 # Usage: ./scripts/register-schema.sh [subject] [sr-url]
 #   subject  — default: orders.dlq-value
 #   sr-url   — default: http://localhost:8081
@@ -16,7 +16,6 @@ NC='\033[0m'
 
 # ── schema definition ────────────────────────────────────────────────────────
 # Matches the JSON payload produced by seed-dlq.sh.
-# namespace mirrors the domain package so the backend can decode it.
 AVRO_SCHEMA='{
   "type": "record",
   "name": "Order",
@@ -51,7 +50,6 @@ fi
 # ── register ─────────────────────────────────────────────────────────────────
 echo -e "${YELLOW}Registering subject '${SUBJECT}'...${NC}"
 
-# The SR API expects the schema as a JSON-escaped string inside the body.
 ESCAPED=$(echo "$AVRO_SCHEMA" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))")
 BODY="{\"schemaType\":\"AVRO\",\"schema\":${ESCAPED}}"
 

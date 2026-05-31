@@ -1,47 +1,42 @@
 #!/usr/bin/env bash
-# Produces random DLQ messages to a Kafka topic via rpk inside the Redpanda container.
-# If the subject <topic>-value exists in Schema Registry the payload is Avro-encoded
-# with Confluent wire format (magic byte + 4-byte schema ID + binary).
+# Produces random DLQ messages to a Kafka topic via Confluent Kafka CLI tools.
+# Plain JSON if no schema registered; Avro (Confluent wire format) if subject exists.
+#
 # Usage: ./scripts/seed-dlq.sh [topic] [count]
 #   topic  — default: orders.dlq
 #   count  — default: 20
+#
+# Requires the dev stack running:
+#   docker compose -f docker/docker-compose.dev.yml up -d
 
 set -euo pipefail
 
 TOPIC="${1:-orders.dlq}"
 COUNT="${2:-20}"
-BROKER="localhost:9092"
-SR_URL="http://localhost:8081"
-CONTAINER="docker-redpanda-1"
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+KAFKA_CONTAINER="dls-dev-kafka"
+SR_CONTAINER="dls-dev-schema-registry"
+BROKER_INTERNAL="dls-dev-kafka:9092"   # used from within Docker network
+SR_URL="http://localhost:8081"         # exposed on host
 
-# ── sanity checks ────────────────────────────────────────────────────────────
-if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${CONTAINER}$"; then
-  echo -e "${RED}Container '${CONTAINER}' not running.${NC}"
-  echo "Start the stack first:  docker compose -f docker/docker-compose.dev.yml up -d"
-  exit 1
-fi
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 
+# ── validate ─────────────────────────────────────────────────────────────────
 if ! [[ "$COUNT" =~ ^[1-9][0-9]*$ ]]; then
-  echo -e "${RED}count must be a positive integer, got: $COUNT${NC}"
+  echo -e "${RED}count must be a positive integer, got: $COUNT${NC}"; exit 1
+fi
+
+if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${KAFKA_CONTAINER}$"; then
+  echo -e "${RED}Container '${KAFKA_CONTAINER}' not running.${NC}"
+  echo "Start the stack:  docker compose -f docker/docker-compose.dev.yml up -d"
   exit 1
 fi
 
-# ── macOS-compatible random helpers ─────────────────────────────────────────
-pick() {
-  local arr=("$@")
-  echo "${arr[$(( RANDOM % ${#arr[@]} ))]}"
-}
+# ── helpers ───────────────────────────────────────────────────────────────────
+pick()       { local arr=("$@"); echo "${arr[$(( RANDOM % ${#arr[@]} ))]}"; }
+rand_price() { printf '%d.%02d' "$(( 5 + RANDOM % 995 ))" "$(( RANDOM % 100 ))"; }
 
-rand_price() {
-  printf '%d.%02d' "$(( 5 + RANDOM % 995 ))" "$(( RANDOM % 100 ))"
-}
-
-# ── data pools ───────────────────────────────────────────────────────────────
+# ── data pools ────────────────────────────────────────────────────────────────
 EX_CLASSES=(
   "it.dls.domain.order.InvalidOrderException"
   "it.dls.domain.payment.PaymentDeclinedException"
@@ -53,42 +48,55 @@ EX_CLASSES=(
   "it.dls.domain.order.OrderValidationException"
 )
 EX_MESSAGES=(
-  "Required field 'shippingAddress' is null"
-  "Payment declined: insufficient funds on card ending 4242"
+  "Required field shippingAddress is null"
+  "Payment declined: insufficient funds"
   "SKU not available in requested quantity"
   "Customer not found in CRM system"
-  "Price mismatch: catalog price differs from order price"
+  "Price mismatch: catalog price differs from order"
   "Order with this idempotency key already processed"
-  "Shipping address could not be resolved to a valid postal zone"
+  "Shipping address could not be resolved to a postal zone"
   "Order total exceeds maximum allowed per transaction"
 )
-SKUS=("LAPTOP-PRO-15" "MOUSE-WL-001" "KB-MECH-TKL" "MONITOR-4K-27" "HEADSET-USB-C" "WEBCAM-HD-1080" "DOCK-TB4" "SSD-1TB-NVME" "CHAIR-ERG-01" "DESK-ADJ-120")
+SKUS=("LAPTOP-PRO-15" "MOUSE-WL-001" "KB-MECH-TKL" "MONITOR-4K-27" "HEADSET-USB-C"
+      "WEBCAM-HD-1080" "DOCK-TB4" "SSD-1TB-NVME" "CHAIR-ERG-01" "DESK-ADJ-120")
 CURRENCIES=("EUR" "USD" "GBP")
-CUSTOMERS=("cust-1001" "cust-2045" "cust-3312" "cust-4879" "cust-5001" "cust-6234" "cust-7720" "cust-8843")
+CUSTOMERS=("cust-1001" "cust-2045" "cust-3312" "cust-4879"
+           "cust-5001" "cust-6234" "cust-7720" "cust-8843")
 ORIG_TOPICS=("orders" "orders-v2" "orders-eu" "orders-us")
 
-# ── ensure topic exists ──────────────────────────────────────────────────────
+# ── ensure topic exists ───────────────────────────────────────────────────────
 echo -e "${YELLOW}Ensuring topic '${TOPIC}' exists (3 partitions)...${NC}"
-docker exec "$CONTAINER" rpk topic create "$TOPIC" --partitions 3 2>/dev/null \
-  && echo -e "  Topic created." \
-  || echo -e "  Topic already exists."
+docker exec "$KAFKA_CONTAINER" kafka-topics \
+  --bootstrap-server localhost:9092 \
+  --create --if-not-exists \
+  --topic "$TOPIC" --partitions 3 --replication-factor 1 2>/dev/null \
+  && echo "  Topic created." || echo "  Topic already exists."
 
-# ── detect schema registry subject ───────────────────────────────────────────
+# ── detect schema ─────────────────────────────────────────────────────────────
 SR_SUBJECT="${TOPIC}-value"
 USE_AVRO=false
+SCHEMA_ID=""
+
 if curl -sf "${SR_URL}/subjects/${SR_SUBJECT}/versions/latest" > /dev/null 2>&1; then
   USE_AVRO=true
-  echo -e "${YELLOW}Schema found for '${SR_SUBJECT}' — producing Avro (Confluent wire format).${NC}"
+  SCHEMA_ID=$(curl -sf "${SR_URL}/subjects/${SR_SUBJECT}/versions/latest" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+  echo -e "${YELLOW}Schema found for '${SR_SUBJECT}' (id=${SCHEMA_ID}) — producing Avro.${NC}"
 else
-  echo -e "${YELLOW}No schema for '${SR_SUBJECT}' — producing raw JSON.${NC}"
-  echo -e "  Run ./scripts/register-schema.sh to enable Avro encoding."
+  echo -e "${YELLOW}No schema for '${SR_SUBJECT}' — producing plain JSON.${NC}"
+  echo "  Run ./scripts/register-schema.sh to enable Avro encoding."
 fi
 
-# ── produce messages ─────────────────────────────────────────────────────────
-echo -e "${YELLOW}Producing ${COUNT} messages to '${TOPIC}'...${NC}\n"
-
-SUCCESS=0
-FAIL=0
+# ── build messages ────────────────────────────────────────────────────────────
+# Line format (tab-delimited):  HEADERS<TAB>KEY<TAB>JSON_VALUE
+#
+# Headers are pipe-separated pairs:  header1:val1|header2:val2|...
+# Both headers.delimiter and key.separator are TAB; the reader splits on the
+# first TAB for headers, then on the first TAB of the remainder for the key.
+#
+echo -e "${YELLOW}Building ${COUNT} messages...${NC}"
+TMPFILE=$(mktemp)
+trap "rm -f $TMPFILE" EXIT
 
 for i in $(seq 1 "$COUNT"); do
   ORDER_ID="ORD-$(( 100000 + RANDOM % 900000 ))"
@@ -104,34 +112,51 @@ for i in $(seq 1 "$COUNT"); do
   ORIG_PARTITION=$(( RANDOM % 3 ))
   ORIG_OFFSET=$(( RANDOM % 100000 ))
   RETRY_COUNT=$(( RANDOM % 4 ))
-  CORR_ID="corr-$(LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom 2>/dev/null | head -c 16 || echo "${RANDOM}${RANDOM}${RANDOM}${RANDOM}")"
+  CORR_ID="corr-$(LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom 2>/dev/null | head -c 16 \
+             || echo "${RANDOM}${RANDOM}${RANDOM}${RANDOM}")"
   TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-  PAYLOAD="{\"orderId\":\"${ORDER_ID}\",\"customerId\":\"${CUSTOMER}\",\"item\":{\"sku\":\"${SKU}\",\"qty\":${QTY},\"unitPrice\":${UNIT_PRICE},\"currency\":\"${CURRENCY}\"},\"total\":${TOTAL},\"timestamp\":\"${TIMESTAMP}\",\"correlationId\":\"${CORR_ID}\"}"
+  PAYLOAD="{\"orderId\":\"${ORDER_ID}\",\"customerId\":\"${CUSTOMER}\",\
+\"item\":{\"sku\":\"${SKU}\",\"qty\":${QTY},\"unitPrice\":${UNIT_PRICE},\"currency\":\"${CURRENCY}\"},\
+\"total\":${TOTAL},\"timestamp\":\"${TIMESTAMP}\",\"correlationId\":\"${CORR_ID}\"}"
 
-  SCHEMA_FLAGS=()
-  if [[ "$USE_AVRO" == "true" ]]; then
-    SCHEMA_FLAGS=(--schema-id topic -X registry.hosts=localhost:8081)
-  fi
+  HEADERS="x-original-topic:${ORIG_TOPIC}|x-exception-class:${EX_CLASS}\
+|x-exception-message:${EX_MSG}|x-original-partition:${ORIG_PARTITION}\
+|x-original-offset:${ORIG_OFFSET}|x-retry-count:${RETRY_COUNT}"
 
-  if echo "$PAYLOAD" | docker exec -i "$CONTAINER" rpk topic produce "$TOPIC" \
-      "${SCHEMA_FLAGS[@]+"${SCHEMA_FLAGS[@]}"}" \
-      -H "x-original-topic:${ORIG_TOPIC}" \
-      -H "x-exception-class:${EX_CLASS}" \
-      -H "x-exception-message:${EX_MSG}" \
-      -H "x-original-partition:${ORIG_PARTITION}" \
-      -H "x-original-offset:${ORIG_OFFSET}" \
-      -H "x-retry-count:${RETRY_COUNT}" \
-      -k "$ORDER_ID" \
-      --brokers "$BROKER" 2>/dev/null; then
-    SUCCESS=$(( SUCCESS + 1 ))
-    SHORT_EX="${EX_CLASS##*.}"
-    echo -e "  ${GREEN}[${i}/${COUNT}]${NC} ${ORDER_ID}  ${CUSTOMER}  ${QTY}x ${SKU}  →  ${SHORT_EX}"
-  else
-    FAIL=$(( FAIL + 1 ))
-    echo -e "  ${RED}[${i}/${COUNT}] FAILED${NC} ${ORDER_ID}"
-  fi
+  printf '%s\t%s\t%s\n' "$HEADERS" "$ORDER_ID" "$PAYLOAD" >> "$TMPFILE"
+  echo -e "  ${GREEN}[${i}/${COUNT}]${NC} ${ORDER_ID}  ${CUSTOMER}  ${QTY}x ${SKU}  ${EX_CLASS##*.}"
 done
 
+# ── produce ───────────────────────────────────────────────────────────────────
 echo
-echo -e "${GREEN}Done.${NC}  produced=${SUCCESS}  failed=${FAIL}  topic=${TOPIC}"
+echo -e "${YELLOW}Producing to '${TOPIC}'...${NC}"
+
+# Common reader properties for both producers
+READER_PROPS=(
+  --property parse.key=true
+  --property key.separator=$'\t'
+  --property parse.headers=true
+  --property headers.delimiter=$'\t'
+  --property headers.separator='|'
+  --property headers.key.separator=:
+)
+
+if [[ "$USE_AVRO" == "true" ]]; then
+  # kafka-avro-console-producer is in the schema-registry container.
+  # It connects to Kafka via the internal Docker network.
+  docker exec -i "$SR_CONTAINER" kafka-avro-console-producer \
+    --bootstrap-server "$BROKER_INTERNAL" \
+    --topic "$TOPIC" \
+    --property schema.registry.url=http://localhost:8081 \
+    --property value.schema.id="$SCHEMA_ID" \
+    --property key.serializer=org.apache.kafka.common.serialization.StringSerializer \
+    "${READER_PROPS[@]}" < "$TMPFILE"
+else
+  docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
+    --bootstrap-server localhost:9092 \
+    --topic "$TOPIC" \
+    "${READER_PROPS[@]}" < "$TMPFILE"
+fi
+
+echo -e "${GREEN}Done.${NC}  produced=${COUNT}  topic=${TOPIC}"
