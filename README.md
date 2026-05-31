@@ -2,6 +2,9 @@
 
 Web app to monitor Kafka dead-letter queues across multiple clusters. Inspect schema-decoded payloads (Avro / Protobuf / JSON Schema), attach note threads to messages, and replay messages to their original topic.
 
+- [Architecture](ARCHITECTURE.md) — hexagonal layers, data flows, component map
+- [Setup Guide](SETUP.md) — local dev, Docker images, Kubernetes, environment variables
+
 ## Local development
 
 Start the dev stack (PostgreSQL + Redpanda on fixed ports), then run the app:
