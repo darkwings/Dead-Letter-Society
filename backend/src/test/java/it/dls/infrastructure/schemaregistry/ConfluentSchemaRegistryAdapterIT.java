@@ -207,6 +207,13 @@ class ConfluentSchemaRegistryAdapterIT {
         String jsonPart = new String(encoded, 5, encoded.length - 5, java.nio.charset.StandardCharsets.UTF_8);
         assertThat(MAPPER.readTree(jsonPart).get("orderId").asText()).isEqualTo("j-enc");
         assertThat(MAPPER.readTree(jsonPart).get("total").asDouble()).isEqualTo(55.0);
+
+        // Round-trip: decode the encoded bytes and check field values
+        DecodedPayload decodedRoundTrip = adapter.decode(encoded, "http://mock-sr", SchemaRegistryAuthConfig.none());
+        assertThat(decodedRoundTrip.isDecoded()).isTrue();
+        assertThat(decodedRoundTrip.format()).isEqualTo("JSON_SCHEMA");
+        assertThat(decodedRoundTrip.payload().get("orderId").asText()).isEqualTo("j-enc");
+        assertThat(decodedRoundTrip.payload().get("total").asDouble()).isEqualTo(55.0);
     }
 
     // SR-009
