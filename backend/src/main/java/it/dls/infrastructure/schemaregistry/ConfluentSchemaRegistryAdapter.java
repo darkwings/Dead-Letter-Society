@@ -73,9 +73,9 @@ public class ConfluentSchemaRegistryAdapter implements SchemaRegistryPort {
 
     @Override
     public byte[] encode(JsonNode payload, int schemaId,
-                         String schemaRegistryUrl, SchemaRegistryAuthConfig auth) {
+                         String url, SchemaRegistryAuthConfig auth) {
         try {
-            var client = buildClient(schemaRegistryUrl, auth);
+            var client = buildClient(url, auth);
             var schema = client.getSchemaById(schemaId);
             return switch (schema.schemaType()) {
                 case "AVRO"     -> encodeAvro(payload, (AvroSchema) schema, schemaId);
@@ -97,21 +97,21 @@ public class ConfluentSchemaRegistryAdapter implements SchemaRegistryPort {
         var decoder = DecoderFactory.get().jsonDecoder(avroSchema, payload.toString());
         var record = reader.read(null, decoder);
 
-        var baos = new ByteArrayOutputStream();
-        baos.write(0x00);
-        baos.write(ByteBuffer.allocate(4).putInt(schemaId).array());
-        var encoder = EncoderFactory.get().binaryEncoder(baos, null);
+        var out = new ByteArrayOutputStream();
+        out.write(0x00);
+        out.write(ByteBuffer.allocate(4).putInt(schemaId).array());
+        var encoder = EncoderFactory.get().binaryEncoder(out, null);
         new GenericDatumWriter<GenericRecord>(avroSchema).write(record, encoder);
         encoder.flush();
-        return baos.toByteArray();
+        return out.toByteArray();
     }
 
     private byte[] encodeJsonSchema(JsonNode payload, int schemaId) throws Exception {
-        var baos = new ByteArrayOutputStream();
-        baos.write(0x00);
-        baos.write(ByteBuffer.allocate(4).putInt(schemaId).array());
-        baos.write(payload.toString().getBytes(StandardCharsets.UTF_8));
-        return baos.toByteArray();
+        var out = new ByteArrayOutputStream();
+        out.write(0x00);
+        out.write(ByteBuffer.allocate(4).putInt(schemaId).array());
+        out.write(payload.toString().getBytes(StandardCharsets.UTF_8));
+        return out.toByteArray();
     }
 
     SchemaRegistryClient buildClient(String url, SchemaRegistryAuthConfig auth) {

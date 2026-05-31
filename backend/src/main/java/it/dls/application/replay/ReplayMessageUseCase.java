@@ -2,7 +2,9 @@ package it.dls.application.replay;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import it.dls.domain.cluster.KafkaClusterRepository;
+import it.dls.domain.cluster.SchemaRegistryAuthConfig;
 import it.dls.domain.dlqconfig.DlqConfigRepository;
+import it.dls.domain.message.DlqMessage;
 import it.dls.domain.message.MessageRepository;
 import it.dls.domain.message.MessageStatus;
 import it.dls.domain.message.ReplayAuditRecord;
@@ -45,10 +47,12 @@ public class ReplayMessageUseCase {
         var cluster = clusterRepo.findById(config.getClusterId())
             .orElseThrow(() -> new IllegalArgumentException("Cluster not found: " + config.getClusterId()));
 
-        if (editedPayload != null && msg.getSchemaId() != null && cluster.getSchemaRegistry() != null) {
-            var srAuth = cluster.getSchemaRegistry().authConfig().decrypted(encryption);
-            var validation = schemaRegistry.validate(editedPayload, msg.getSchemaId(),
-                cluster.getSchemaRegistry().url(), srAuth);
+        var sr = (msg.getSchemaId() != null) ? cluster.getSchemaRegistry() : null;
+        var srUrl = sr != null ? sr.url() : null;
+        var srAuth = sr != null ? sr.authConfig().decrypted(encryption) : null;
+
+        if (editedPayload != null && srUrl != null) {
+            var validation = schemaRegistry.validate(editedPayload, msg.getSchemaId(), srUrl, srAuth);
             if (!validation.valid())
                 throw new SchemaValidationException(validation.error());
         }
@@ -60,18 +64,7 @@ public class ReplayMessageUseCase {
         headers.put("x-dls-replayed-by", replayedBy.toString());
 
         try {
-            byte[] payload;
-            if (editedPayload != null) {
-                if (msg.getSchemaId() != null && cluster.getSchemaRegistry() != null) {
-                    var srAuth = cluster.getSchemaRegistry().authConfig().decrypted(encryption);
-                    payload = schemaRegistry.encode(editedPayload, msg.getSchemaId(),
-                        cluster.getSchemaRegistry().url(), srAuth);
-                } else {
-                    payload = editedPayload.toString().getBytes(StandardCharsets.UTF_8);
-                }
-            } else {
-                payload = msg.getRawPayload();
-            }
+            var payload = resolvePayload(msg, editedPayload, srUrl, srAuth);
 
             producer.publish(cluster.getBootstrapServers(),
                 cluster.getSecurityConfig().decrypted(encryption),
@@ -105,6 +98,13 @@ public class ReplayMessageUseCase {
         var srAuth = cluster.getSchemaRegistry().authConfig().decrypted(encryption);
         return schemaRegistry.validate(payload, msg.getSchemaId(),
             cluster.getSchemaRegistry().url(), srAuth);
+    }
+
+    private byte[] resolvePayload(DlqMessage msg, JsonNode editedPayload,
+                                   String srUrl, SchemaRegistryAuthConfig srAuth) {
+        if (editedPayload == null) return msg.getRawPayload();
+        if (srUrl == null) return editedPayload.toString().getBytes(StandardCharsets.UTF_8);
+        return schemaRegistry.encode(editedPayload, msg.getSchemaId(), srUrl, srAuth);
     }
 
     private void safeNotify(Runnable r) {
