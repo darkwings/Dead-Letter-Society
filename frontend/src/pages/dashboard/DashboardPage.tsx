@@ -1,9 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 import { Link } from 'react-router-dom'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer
 } from 'recharts'
+
+const REFRESH_INTERVAL = 30_000
 
 interface DashboardSummary {
   newCount: number
@@ -62,9 +64,12 @@ function SummaryCard({ label, count, color }: { label: string; count: number; co
 }
 
 export default function DashboardPage() {
-  const { data: summary, isLoading: loadingSummary } = useQuery({
+  const queryClient = useQueryClient()
+
+  const { data: summary, isLoading: loadingSummary, isFetching: fetchingSummary } = useQuery({
     queryKey: ['dashboard-summary'],
     queryFn: () => apiFetch<DashboardSummary>('/api/dashboard/summary'),
+    refetchInterval: REFRESH_INTERVAL,
   })
 
   const { data: sparkline = [], isLoading: loadingSparkline } = useQuery({
@@ -75,6 +80,7 @@ export default function DashboardPage() {
   const { data: clusters = [], isLoading: loadingClusters } = useQuery({
     queryKey: ['clusters'],
     queryFn: () => apiFetch<ClusterItem[]>('/api/clusters'),
+    refetchInterval: REFRESH_INTERVAL,
   })
 
   const clusterIds = clusters.map(c => c.id)
@@ -93,7 +99,17 @@ export default function DashboardPage() {
       return all
     },
     enabled: clusters.length > 0,
+    refetchInterval: REFRESH_INTERVAL,
   })
+
+  function handleRefresh() {
+    queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] })
+    queryClient.invalidateQueries({ queryKey: ['dashboard-sparkline'] })
+    queryClient.invalidateQueries({ queryKey: ['clusters'] })
+    queryClient.invalidateQueries({ queryKey: ['all-dlq-configs'] })
+  }
+
+  const isRefreshing = fetchingSummary || dlqQueries.isFetching
 
   const chartData = sparkline.map(p => ({
     date: p.date.slice(5),
@@ -104,11 +120,21 @@ export default function DashboardPage() {
     <div style={{ padding: 32 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24 }}>
         <h1 className="t-h1">Overview</h1>
-        {summary && (
-          <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
-            Last updated: {new Date(summary.computedAt).toLocaleString()}
-          </span>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {summary && (
+            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
+              Last updated: {new Date(summary.computedAt).toLocaleString()}
+            </span>
+          )}
+          <button
+            className="btn btn-secondary"
+            style={{ height: 28, fontSize: 12, padding: '0 12px' }}
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
