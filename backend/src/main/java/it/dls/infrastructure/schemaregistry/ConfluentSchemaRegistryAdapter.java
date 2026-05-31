@@ -71,7 +71,7 @@ public class ConfluentSchemaRegistryAdapter implements SchemaRegistryPort {
     @Override
     public byte[] encode(JsonNode payload, int schemaId,
                          String schemaRegistryUrl, SchemaRegistryAuthConfig auth) {
-        throw new UnsupportedOperationException("Not yet implemented");
+        throw new UnsupportedOperationException("ConfluentSchemaRegistryAdapter.encode() not yet implemented");
     }
 
     SchemaRegistryClient buildClient(String url, SchemaRegistryAuthConfig auth) {
