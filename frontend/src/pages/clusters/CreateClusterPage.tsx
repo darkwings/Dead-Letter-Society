@@ -21,6 +21,9 @@ const SASL_PROTOCOLS: Protocol[] = [
   'SASL_SCRAM_SHA_512',
 ]
 
+const SR_AUTH_MODES = ['none', 'basic'] as const
+type SrAuthMode = (typeof SR_AUTH_MODES)[number]
+
 const schema = z.object({
   name: z.string().min(1, 'Name required'),
   bootstrapServers: z.string().min(1, 'Bootstrap servers required'),
@@ -29,6 +32,7 @@ const schema = z.object({
   password: z.string().optional(),
   keystorePem: z.string().optional(),
   srUrl: z.string().optional(),
+  srAuthMode: z.enum(SR_AUTH_MODES).optional(),
   srUsername: z.string().optional(),
   srPassword: z.string().optional(),
 })
@@ -40,13 +44,20 @@ export default function CreateClusterPage() {
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { securityProtocol: 'PLAINTEXT' },
+    defaultValues: { securityProtocol: 'PLAINTEXT', srAuthMode: 'none' },
   })
   const protocol = watch('securityProtocol')
+  const srAuthMode = watch('srAuthMode') as SrAuthMode
 
   const mutation = useMutation({
-    mutationFn: (data: FormValues) =>
-      apiFetch('/api/clusters', { method: 'POST', body: JSON.stringify(data) }),
+    mutationFn: (data: FormValues) => {
+      const payload = { ...data }
+      if (payload.srAuthMode !== 'basic') {
+        payload.srUsername = undefined
+        payload.srPassword = undefined
+      }
+      return apiFetch('/api/clusters', { method: 'POST', body: JSON.stringify(payload) })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clusters'] })
       toast.success('Cluster created')
@@ -120,14 +131,22 @@ export default function CreateClusterPage() {
             />
           </div>
 
-          {watch('srUrl') && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label htmlFor="srAuthMode" style={{ fontSize: 12, fontWeight: 500 }}>Schema Registry Auth</label>
+            <select id="srAuthMode" className="select" {...register('srAuthMode')}>
+              <option value="none">None</option>
+              <option value="basic">Basic Auth</option>
+            </select>
+          </div>
+
+          {srAuthMode === 'basic' && (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label htmlFor="srUsername" style={{ fontSize: 12, fontWeight: 500 }}>Schema Registry Username (optional)</label>
+                <label htmlFor="srUsername" style={{ fontSize: 12, fontWeight: 500 }}>Schema Registry Username</label>
                 <input id="srUsername" className="input" {...register('srUsername')} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label htmlFor="srPassword" style={{ fontSize: 12, fontWeight: 500 }}>Schema Registry Password (optional)</label>
+                <label htmlFor="srPassword" style={{ fontSize: 12, fontWeight: 500 }}>Schema Registry Password</label>
                 <input id="srPassword" type="password" className="input" {...register('srPassword')} />
               </div>
             </>
