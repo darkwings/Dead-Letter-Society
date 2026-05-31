@@ -1,0 +1,26 @@
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # SPA: all non-asset paths → index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Proxy API + SSE to backend
+    location /api/ {
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection        '';
+
+        # Required for SSE — disable buffering
+        proxy_buffering       off;
+        proxy_cache           off;
+        proxy_read_timeout    3600s;
+    }
+}

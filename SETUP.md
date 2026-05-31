@@ -273,6 +273,60 @@ docker compose -f docker/docker-compose.sasl-test.yml down
 
 ---
 
+## Building Production Images
+
+Two Dockerfiles are provided — one per service. Both use multi-stage builds so no local JDK or Node is required.
+
+### Backend image
+
+```bash
+docker build -t dead-letter-society-backend:latest backend/
+```
+
+Build stages:
+1. `gradle:8.13-jdk21` — compiles and packages with `./gradlew build -x test`
+2. `eclipse-temurin:21-jre-jammy` — copies the Quarkus fast-jar layout (`lib/`, `app/`, `quarkus/`, `quarkus-run.jar`) and runs as non-root uid 185
+
+### Frontend image
+
+```bash
+docker build -t dead-letter-society-frontend:latest frontend/
+```
+
+Build stages:
+1. `node:20-alpine` — runs `npm ci && npm run build`
+2. `nginx:1.27-alpine` — serves the static `dist/` and proxies `/api/*` to the backend
+
+The nginx config is generated from `frontend/nginx.conf.template` at container startup via `envsubst`. The backend URL is controlled by the `BACKEND_URL` environment variable (default: `http://backend:8080`).
+
+> **SSE note:** `proxy_buffering off` is set on the `/api/` location so that the real-time event stream works through nginx without delay.
+
+### Running both images with Docker Compose
+
+After building both images, use the production compose file:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d
+```
+
+### Targeting a different backend host (K8s / ECS / Cloud Run)
+
+When the frontend and backend run as separate services, pass the internal service address at runtime:
+
+```bash
+# Docker / Docker Compose override
+docker run -e BACKEND_URL=http://dls-backend:8080 dead-letter-society-frontend:latest
+
+# Kubernetes — in the frontend Deployment env section
+env:
+  - name: BACKEND_URL
+    value: "http://dls-backend-svc:8080"
+```
+
+For Kubernetes clusters with an Ingress controller, a common alternative is to route at the Ingress level (`/api/*` → backend service, `/*` → frontend service) and remove the nginx proxy entirely — both approaches work.
+
+---
+
 ## Standalone Mode (no SSO)
 
 Users are managed entirely within the application. The first user to reach the setup screen becomes the admin.

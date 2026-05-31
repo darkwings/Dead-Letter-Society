@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.playwright-mcp/
+e2e/
+test-results/
+.DS_Store
