@@ -55,15 +55,25 @@ public class ReplayMessageUseCase {
         }
 
         var targetTopic = topicResolver.resolve(msg, config, wizardTopicOverride);
-        var payload = editedPayload != null
-            ? editedPayload.toString().getBytes(StandardCharsets.UTF_8)
-            : msg.getRawPayload();
 
         var headers = new HashMap<>(msg.getHeaders());
         headers.put("x-dls-replayed-at", Instant.now().toString());
         headers.put("x-dls-replayed-by", replayedBy.toString());
 
         try {
+            byte[] payload;
+            if (editedPayload != null) {
+                if (msg.getSchemaId() != null && cluster.getSchemaRegistry() != null) {
+                    var srAuth = cluster.getSchemaRegistry().authConfig().decrypted(encryption);
+                    payload = schemaRegistry.encode(editedPayload, msg.getSchemaId(),
+                        cluster.getSchemaRegistry().url(), srAuth);
+                } else {
+                    payload = editedPayload.toString().getBytes(StandardCharsets.UTF_8);
+                }
+            } else {
+                payload = msg.getRawPayload();
+            }
+
             producer.publish(cluster.getBootstrapServers(),
                 cluster.getSecurityConfig().decrypted(encryption),
                 targetTopic, msg.getKey(), payload, headers);

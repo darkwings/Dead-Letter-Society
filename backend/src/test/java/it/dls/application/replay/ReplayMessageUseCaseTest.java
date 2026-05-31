@@ -18,6 +18,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class ReplayMessageUseCaseTest {
@@ -111,7 +113,71 @@ class ReplayMessageUseCaseTest {
     }
 
     @Test
-    void editedPayload_withValidSchema_sendsEditedBytes() throws Exception {
+    void editedPayload_withSchemaAndSR_callsEncodeAndSendsResult() throws Exception {
+        var mapper = new ObjectMapper();
+        var edited = mapper.readTree("{\"amount\":50.00}");
+        var encoded = new byte[]{0x00, 0x00, 0x00, 0x00, 0x07, 0x42}; // fake encoded bytes
+        var msg = message(MSG_ID, CONFIG_ID, MessageStatus.NEW,
+            Map.of("x-original-topic", "orders"), 7);
+        var config = config(CONFIG_ID, CLUSTER_ID);
+        var cluster = clusterWithSchemaRegistry(CLUSTER_ID);
+        when(messageRepo.findById(MSG_ID)).thenReturn(Optional.of(msg));
+        when(configRepo.findById(CONFIG_ID)).thenReturn(Optional.of(config));
+        when(clusterRepo.findById(CLUSTER_ID)).thenReturn(Optional.of(cluster));
+        when(schemaRegistry.validate(any(), eq(7), any(), any())).thenReturn(ValidationResult.ok());
+        when(schemaRegistry.encode(eq(edited), eq(7), any(), any())).thenReturn(encoded);
+
+        var result = useCase.replay(MSG_ID, null, edited, USER_ID);
+
+        assertThat(result.success()).isTrue();
+        verify(schemaRegistry).encode(eq(edited), eq(7), any(), any());
+        var payloadCaptor = ArgumentCaptor.forClass(byte[].class);
+        verify(producer).publish(any(), any(), any(), any(), payloadCaptor.capture(), any());
+        assertThat(payloadCaptor.getValue()).isEqualTo(encoded);
+    }
+
+    @Test
+    void editedPayload_noSR_sendsUtf8Json() throws Exception {
+        var mapper = new ObjectMapper();
+        var edited = mapper.readTree("{\"amount\":50.00}");
+        var msg = message(MSG_ID, CONFIG_ID, MessageStatus.NEW,
+            Map.of("x-original-topic", "orders"), null);
+        var config = config(CONFIG_ID, CLUSTER_ID);
+        var cluster = plaintextCluster(CLUSTER_ID); // no SR
+        when(messageRepo.findById(MSG_ID)).thenReturn(Optional.of(msg));
+        when(configRepo.findById(CONFIG_ID)).thenReturn(Optional.of(config));
+        when(clusterRepo.findById(CLUSTER_ID)).thenReturn(Optional.of(cluster));
+
+        var result = useCase.replay(MSG_ID, null, edited, USER_ID);
+
+        assertThat(result.success()).isTrue();
+        verify(schemaRegistry, never()).encode(any(), anyInt(), any(), any());
+        var payloadCaptor = ArgumentCaptor.forClass(byte[].class);
+        verify(producer).publish(any(), any(), any(), any(), payloadCaptor.capture(), any());
+        assertThat(new String(payloadCaptor.getValue(), java.nio.charset.StandardCharsets.UTF_8))
+            .contains("50.0");
+    }
+
+    @Test
+    void noEditedPayload_sendsRawPayload() {
+        var msg = message(MSG_ID, CONFIG_ID, MessageStatus.NEW,
+            Map.of("x-original-topic", "orders"), 7);
+        var config = config(CONFIG_ID, CLUSTER_ID);
+        var cluster = clusterWithSchemaRegistry(CLUSTER_ID);
+        when(messageRepo.findById(MSG_ID)).thenReturn(Optional.of(msg));
+        when(configRepo.findById(CONFIG_ID)).thenReturn(Optional.of(config));
+        when(clusterRepo.findById(CLUSTER_ID)).thenReturn(Optional.of(cluster));
+
+        useCase.replay(MSG_ID, null, null, USER_ID);
+
+        verify(schemaRegistry, never()).encode(any(), anyInt(), any(), any());
+        var payloadCaptor = ArgumentCaptor.forClass(byte[].class);
+        verify(producer).publish(any(), any(), any(), any(), payloadCaptor.capture(), any());
+        assertThat(payloadCaptor.getValue()).isEqualTo(new byte[]{1, 2, 3}); // rawPayload from message()
+    }
+
+    @Test
+    void encodeFailure_transitionsToReplayFailed() throws Exception {
         var mapper = new ObjectMapper();
         var edited = mapper.readTree("{\"amount\":50.00}");
         var msg = message(MSG_ID, CONFIG_ID, MessageStatus.NEW,
@@ -121,15 +187,17 @@ class ReplayMessageUseCaseTest {
         when(messageRepo.findById(MSG_ID)).thenReturn(Optional.of(msg));
         when(configRepo.findById(CONFIG_ID)).thenReturn(Optional.of(config));
         when(clusterRepo.findById(CLUSTER_ID)).thenReturn(Optional.of(cluster));
-        when(schemaRegistry.validate(any(), eq(7), any(), any()))
-            .thenReturn(ValidationResult.ok());
+        when(schemaRegistry.validate(any(), eq(7), any(), any())).thenReturn(ValidationResult.ok());
+        when(schemaRegistry.encode(any(), eq(7), any(), any()))
+            .thenThrow(new RuntimeException("Encode failed: schema mismatch"));
 
         var result = useCase.replay(MSG_ID, null, edited, USER_ID);
 
-        assertThat(result.success()).isTrue();
-        var payloadCaptor = ArgumentCaptor.forClass(byte[].class);
-        verify(producer).publish(any(), any(), any(), any(), payloadCaptor.capture(), any());
-        assertThat(new String(payloadCaptor.getValue())).contains("50.0");
+        assertThat(result.success()).isFalse();
+        assertThat(result.failureReason()).contains("Encode failed");
+        assertThat(msg.getStatus()).isEqualTo(MessageStatus.REPLAY_FAILED);
+        verify(auditRepo).save(any(ReplayAuditRecord.class));
+        verify(notifier).emitMessageStatusChanged(MSG_ID, CONFIG_ID, "REPLAY_FAILED");
     }
 
     @Test
