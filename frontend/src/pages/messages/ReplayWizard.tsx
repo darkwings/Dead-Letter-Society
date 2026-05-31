@@ -152,18 +152,9 @@ export default function ReplayWizard({
           </div>
           <DialogFooter>
             <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            {hasDecodedPayload && (
-              <button
-                className="btn btn-secondary"
-                onClick={() => setStep('edit')}
-                disabled={!effectiveTopic}
-              >
-                Edit Payload
-              </button>
-            )}
             <button
               className="btn btn-primary"
-              onClick={() => setStep('confirm')}
+              onClick={() => setStep(hasDecodedPayload ? 'edit' : 'confirm')}
               disabled={!effectiveTopic}
             >
               Next

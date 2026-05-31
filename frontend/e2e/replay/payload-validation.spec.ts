@@ -22,6 +22,9 @@ const messageWithSchema = {
 
 test.beforeEach(async ({ page }) => {
   await loginAsOperator(page)
+  await page.route(`/api/dlq-configs/${CONFIG_ID}`, (route: Route) =>
+    route.fulfill({ json: { id: CONFIG_ID, displayName: 'Test DLQ' } })
+  )
   await page.route(`/api/messages/${MSG_ID}`, (route: Route) =>
     route.fulfill({ json: messageWithSchema })
   )
@@ -48,7 +51,7 @@ test('invalid edited payload shows validation error', async ({ page }) => {
   await page.getByTestId('replay-button').click()
 
   // Step 1: go to edit
-  await page.getByRole('button', { name: 'Edit Payload' }).click()
+  await page.getByRole('button', { name: 'Next' }).click()
 
   // Step 2: corrupt the payload
   await page.getByTestId('payload-editor').fill('{"amount": "not-a-number"}')
@@ -66,7 +69,7 @@ test('invalid edited payload blocks confirm button', async ({ page }) => {
 
   await page.goto(`/messages/${MSG_ID}`)
   await page.getByTestId('replay-button').click()
-  await page.getByRole('button', { name: 'Edit Payload' }).click()
+  await page.getByRole('button', { name: 'Next' }).click()
   await page.getByTestId('payload-editor').fill('{"amount": "not-a-number"}')
   await page.getByRole('button', { name: 'Next' }).click()
 
@@ -82,7 +85,7 @@ test('valid edited payload proceeds to confirm', async ({ page }) => {
 
   await page.goto(`/messages/${MSG_ID}`)
   await page.getByTestId('replay-button').click()
-  await page.getByRole('button', { name: 'Edit Payload' }).click()
+  await page.getByRole('button', { name: 'Next' }).click()
   await page.getByTestId('payload-editor').fill('{"amount": 50}')
   await page.getByRole('button', { name: 'Next' }).click()
 

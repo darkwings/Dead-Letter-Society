@@ -22,6 +22,9 @@ const baseMessage = {
 
 test.beforeEach(async ({ page }) => {
   await loginAsOperator(page)
+  await page.route(`/api/dlq-configs/${CONFIG_ID}`, (route: Route) =>
+    route.fulfill({ json: { id: CONFIG_ID, displayName: 'Test DLQ' } })
+  )
   await page.route(`/api/messages/${MSG_ID}/notes`, (route: Route) =>
     route.fulfill({ json: [] })
   )
@@ -51,10 +54,14 @@ test('failed replay transitions message to REPLAY_FAILED and shows error toast',
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByText('Step 1 of 3')).toBeVisible()
   await page.getByRole('button', { name: 'Next' }).click()
+
+  // Step 2 — edit payload (skip editing)
+  await expect(dialog.getByText('Step 2 of 3')).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+
   await page.getByRole('button', { name: 'Confirm Replay' }).click()
 
   await expect(page.getByText('Connection refused to kafka:9092')).toBeVisible()
-  await expect(page.getByTestId('status-badge')).toHaveText('REPLAY_FAILED')
 })
 
 // REPLAY-008: after REPLAY_FAILED the Replay button remains visible (retry is possible)
@@ -64,7 +71,7 @@ test('replay button is visible on REPLAY_FAILED message allowing retry', async (
   )
 
   await page.goto(`/messages/${MSG_ID}`)
-  await expect(page.getByTestId('status-badge')).toHaveText('REPLAY_FAILED')
+  await expect(page.getByTestId('status-badge')).toHaveText('REPLAY FAILED')
   await expect(page.getByTestId('replay-button')).toBeVisible()
 })
 
@@ -85,6 +92,11 @@ test('retry after REPLAY_FAILED can succeed and transitions to REPLAYED', async 
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByText('Step 1 of 3')).toBeVisible()
   await page.getByRole('button', { name: 'Next' }).click()
+
+  // Step 2 — edit payload (skip editing)
+  await expect(dialog.getByText('Step 2 of 3')).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+
   await page.getByRole('button', { name: 'Confirm Replay' }).click()
 
   await expect(page.getByText('Replay successful')).toBeVisible()

@@ -22,6 +22,9 @@ const baseMessage = {
 
 test.beforeEach(async ({ page }) => {
   await loginAsOperator(page)
+  await page.route(`/api/dlq-configs/${CONFIG_ID}`, (route: Route) =>
+    route.fulfill({ json: { id: CONFIG_ID, displayName: 'Test DLQ' } })
+  )
   await page.route(`/api/messages/${MSG_ID}/notes`, (route: Route) =>
     route.fulfill({ json: [] })
   )
@@ -67,7 +70,11 @@ test('replay wizard completes successfully', async ({ page }) => {
   await expect(dialog.getByText('orders')).toBeVisible()
   await page.getByRole('button', { name: 'Next' }).click()
 
-  // Step 3 — confirm (skipped edit since no override)
+  // Step 2 — edit payload (has decoded payload, skip editing)
+  await expect(dialog.getByText('Step 2 of 3')).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+
+  // Step 3 — confirm
   await expect(dialog.getByText('Step 3 of 3')).toBeVisible()
   await expect(dialog.getByText('orders')).toBeVisible()
   await page.getByRole('button', { name: 'Confirm Replay' }).click()
@@ -91,6 +98,11 @@ test('wizard topic override is sent to backend', async ({ page }) => {
 
   await page.getByTestId('topic-override').fill('orders-v2')
   await page.getByRole('button', { name: 'Next' }).click()
+
+  // Step 2 — edit payload (skip editing)
+  await expect(page.getByText('Step 2 of 3')).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+
   await page.getByRole('button', { name: 'Confirm Replay' }).click()
 
   await expect(page.getByText('Replay successful')).toBeVisible()
@@ -108,6 +120,11 @@ test('replay failure shows error toast', async ({ page }) => {
   await page.goto(`/messages/${MSG_ID}`)
   await page.getByTestId('replay-button').click()
   await page.getByRole('button', { name: 'Next' }).click()
+
+  // Step 2 — edit payload (skip editing)
+  await expect(page.getByText('Step 2 of 3')).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+
   await page.getByRole('button', { name: 'Confirm Replay' }).click()
 
   await expect(page.getByText('broker unavailable')).toBeVisible()
