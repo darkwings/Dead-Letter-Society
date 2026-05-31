@@ -1,0 +1,134 @@
+# SASL/SCRAM Kafka + Basic-auth Schema Registry — connectivity test stack.
+# Ports intentionally offset from dev stack to allow both running simultaneously.
+#
+# Kafka credentials (SCRAM-SHA-256, external listener localhost:19092):
+#   admin   / admin-secret   — superuser
+#   dls-app / dls-secret     — regular user
+#
+# Schema Registry HTTP credentials (localhost:18081):
+#   sr-admin  / sr-admin-secret   — role: admin
+#   sr-reader / sr-reader-secret  — role: reader
+#
+# Usage:
+#   docker compose -f docker/docker-compose.sasl-test.yml up -d
+#   # wait ~20s for kafka-init to complete, then everything is ready
+#
+# Quick smoke tests:
+#
+#   # Kafka SCRAM auth (requires kcat)
+#   kcat -b localhost:19092 \
+#        -X security.protocol=SASL_PLAINTEXT \
+#        -X sasl.mechanism=SCRAM-SHA-256 \
+#        -X sasl.username=admin -X sasl.password=admin-secret \
+#        -L
+#
+#   # Schema Registry — list subjects
+#   curl -u sr-reader:sr-reader-secret http://localhost:18081/subjects
+#
+# Run gated IT tests:
+#   cd backend && ./gradlew test -Dsasl.test.enabled=true \
+#     --tests "it.dls.infrastructure.kafka.KafkaConnectivityAdapterIT"
+
+services:
+
+  # ── Kafka (KRaft, two listeners) ─────────────────────────────────────────────
+  #
+  # INTERNAL (PLAINTEXT, port 9092) — no auth, used by kafka-init and Schema Registry
+  # EXTERNAL (SASL_PLAINTEXT, port 19092) — SCRAM-SHA-256, used by DLS backend tests
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: dls-sasl-kafka
+    environment:
+      # KRaft
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+
+      # Listeners: controller (PLAINTEXT), internal admin (PLAINTEXT), external SASL
+      KAFKA_LISTENERS: CONTROLLER://0.0.0.0:29093,INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:SASL_PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      # SASL — only on EXTERNAL listener
+      KAFKA_SASL_ENABLED_MECHANISMS: SCRAM-SHA-256
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_server_jaas.conf"
+
+      # Single broker defaults
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - ./sasl-test/kafka-jaas.conf:/etc/kafka/kafka_server_jaas.conf:ro
+    ports:
+      - "19092:19092"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  # Creates SCRAM users + topics via the INTERNAL (PLAINTEXT) listener.
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: dls-sasl-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+
+        echo "==> Creating SCRAM users..."
+        kafka-configs --bootstrap-server kafka:9092 \
+          --alter \
+          --add-config 'SCRAM-SHA-256=[iterations=8192,password=admin-secret]' \
+          --entity-type users --entity-name admin
+        kafka-configs --bootstrap-server kafka:9092 \
+          --alter \
+          --add-config 'SCRAM-SHA-256=[iterations=8192,password=dls-secret]' \
+          --entity-type users --entity-name dls-app
+
+        echo "==> Creating topics..."
+        kafka-topics --bootstrap-server kafka:9092 \
+          --create --if-not-exists --topic test-dlq --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 \
+          --create --if-not-exists --topic test-dlq2 --partitions 1 --replication-factor 1
+
+        echo "==> Bootstrap complete."
+
+  # ── Schema Registry ───────────────────────────────────────────────────────────
+  #
+  # Connects to Kafka via INTERNAL (PLAINTEXT) — no SASL needed for SR→Kafka.
+  # Exposes HTTP basic auth for SR clients.
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    container_name: dls-sasl-schema-registry
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    ports:
+      - "18081:8081"
+    volumes:
+      - ./sasl-test/jaas.conf:/etc/schema-registry/jaas.conf:ro
+      - ./sasl-test/users.properties:/etc/schema-registry/users.properties:ro
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: PLAINTEXT
+
+      # HTTP basic auth
+      SCHEMA_REGISTRY_AUTHENTICATION_METHOD: BASIC
+      SCHEMA_REGISTRY_AUTHENTICATION_REALM: SchemaRegistry-Props
+      SCHEMA_REGISTRY_AUTHENTICATION_ROLES: admin,reader
+      SCHEMA_REGISTRY_OPTS: >-
+        -Djava.security.auth.login.config=/etc/schema-registry/jaas.conf

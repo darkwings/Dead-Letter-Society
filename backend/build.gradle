@@ -52,4 +52,5 @@ java {
 
 test {
     systemProperty 'java.util.logging.manager', 'org.jboss.logmanager.LogManager'
+    systemProperty 'sasl.test.enabled', System.getProperty('sasl.test.enabled', '')
 }

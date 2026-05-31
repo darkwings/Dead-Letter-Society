@@ -1,0 +1,18 @@
+kafka:
+  brokers:
+    - redpanda:9092
+  sasl:
+    enabled: true
+    mechanism: SCRAM-SHA-256
+    username: admin
+    password: admin-secret
+
+schemaRegistry:
+  enabled: true
+  urls:
+    - http://schema-registry:8081
+  authentication:
+    method: basicAuth
+    basicAuth:
+      username: sr-admin
+      password: sr-admin-secret
