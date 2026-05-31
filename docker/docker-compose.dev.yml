@@ -5,10 +5,15 @@
 #
 # Unit/IT tests still use Quarkus Dev Services (Testcontainers) — no changes needed here.
 
+networks:
+  dls-dev:
+
 services:
 
   db:
     image: postgres:16-alpine
+    container_name: dls-dev-db
+    networks: [dls-dev]
     ports:
       - "5432:5432"
     environment:
@@ -25,6 +30,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.1
     container_name: dls-dev-kafka
+    networks: [dls-dev]
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -54,6 +60,7 @@ services:
   schema-registry:
     image: confluentinc/cp-schema-registry:7.6.1
     container_name: dls-dev-schema-registry
+    networks: [dls-dev]
     depends_on:
       kafka:
         condition: service_healthy
@@ -67,3 +74,4 @@ services:
 
 volumes:
   db-data:
+
