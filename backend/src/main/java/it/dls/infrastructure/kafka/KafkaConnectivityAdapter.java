@@ -86,7 +86,7 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
                 props.put("security.protocol",
                     security.tlsEnabled() ? "SASL_SSL" : "SASL_PLAINTEXT");
                 props.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
-                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaasConfig(
+                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
                     "org.apache.kafka.common.security.plain.PlainLoginModule",
                     security.encryptedUsername(), security.encryptedPassword()));
             }
@@ -94,7 +94,7 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
                 props.put("security.protocol",
                     security.tlsEnabled() ? "SASL_SSL" : "SASL_PLAINTEXT");
                 props.put(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-256");
-                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaasConfig(
+                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
                     "org.apache.kafka.common.security.scram.ScramLoginModule",
                     security.encryptedUsername(), security.encryptedPassword()));
             }
@@ -102,7 +102,7 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
                 props.put("security.protocol",
                     security.tlsEnabled() ? "SASL_SSL" : "SASL_PLAINTEXT");
                 props.put(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-512");
-                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaasConfig(
+                props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
                     "org.apache.kafka.common.security.scram.ScramLoginModule",
                     security.encryptedUsername(), security.encryptedPassword()));
             }
@@ -110,7 +110,7 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
         return props;
     }
 
-    private String buildJaasConfig(String loginModule, String username, String password) {
+    private String buildJaas(String loginModule, String username, String password) {
         return loginModule + " required username=\"" + username + "\" password=\"" + password + "\";";
     }
 }

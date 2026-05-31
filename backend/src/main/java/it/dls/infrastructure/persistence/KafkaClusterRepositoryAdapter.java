@@ -26,15 +26,15 @@ public class KafkaClusterRepositoryAdapter implements KafkaClusterRepository {
             existing.securityProtocol = cluster.getSecurityConfig().protocol();
             existing.encryptedUsername = cluster.getSecurityConfig().encryptedUsername();
             existing.encryptedPassword = cluster.getSecurityConfig().encryptedPassword();
-            existing.encryptedKeystore = cluster.getSecurityConfig().encryptedKeystorePem();
+            existing.encryptedKeystorePem = cluster.getSecurityConfig().encryptedKeystorePem();
             if (cluster.getSchemaRegistry() != null) {
                 existing.srUrl = cluster.getSchemaRegistry().url();
-                existing.srEncryptedUser = cluster.getSchemaRegistry().encryptedUsername();
-                existing.srEncryptedPass = cluster.getSchemaRegistry().encryptedPassword();
+                existing.srEncryptedUsername = cluster.getSchemaRegistry().encryptedUsername();
+                existing.srEncryptedPassword = cluster.getSchemaRegistry().encryptedPassword();
             } else {
                 existing.srUrl = null;
-                existing.srEncryptedUser = null;
-                existing.srEncryptedPass = null;
+                existing.srEncryptedUsername = null;
+                existing.srEncryptedPassword = null;
             }
             existing.updatedAt = Instant.now();
         }

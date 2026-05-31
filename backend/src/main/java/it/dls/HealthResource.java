@@ -6,11 +6,11 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
 @Path("/api/health")
-public class GreetingResource {
+public class HealthResource {
 
     @GET
     @Produces(MediaType.TEXT_PLAIN)
-    public String hello() {
+    public String health() {
         return "Dead Letter Society — OK";
     }
 }
