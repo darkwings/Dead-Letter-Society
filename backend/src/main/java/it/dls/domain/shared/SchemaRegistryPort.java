@@ -13,4 +13,8 @@ public interface SchemaRegistryPort {
 
     byte[] encode(JsonNode payload, int schemaId,
                   String schemaRegistryUrl, SchemaRegistryAuthConfig auth);
+
+    default int resolveLatestSchemaId(String subject, String schemaRegistryUrl, SchemaRegistryAuthConfig auth) {
+        throw new UnsupportedOperationException("resolveLatestSchemaId not supported");
+    }
 }

@@ -134,6 +134,7 @@ class AddNoteUseCaseTest {
 
     private DlqMessage message(UUID id, UUID dlqConfigId, MessageStatus status) {
         return DlqMessage.reconstitute(id, dlqConfigId, 0, 0L, Instant.now(),
-            new byte[]{}, new byte[]{1}, null, null, null, status, false, Instant.now());
+            new byte[]{}, new byte[]{1}, null, null, null, status, false, Instant.now(),
+            null, null);
     }
 }

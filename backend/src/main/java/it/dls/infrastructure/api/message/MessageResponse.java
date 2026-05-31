@@ -22,7 +22,8 @@ public record MessageResponse(
     JsonNode decodedPayload,
     String rawPayload,
     String key,
-    Map<String, String> headers
+    Map<String, String> headers,
+    JsonNode replayedDecodedPayload
 ) {
     public static MessageResponse from(DlqMessage m) {
         return new MessageResponse(
@@ -31,7 +32,8 @@ public record MessageResponse(
             m.getSchemaId(), m.getIngestedAt(), m.getDecodedPayload(),
             decodeBytes(m.getRawPayload()),
             decodeBytes(m.getKey()),
-            m.getHeaders()
+            m.getHeaders(),
+            m.getReplayedDecodedPayload()
         );
     }
 

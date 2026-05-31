@@ -114,6 +114,15 @@ public class ConfluentSchemaRegistryAdapter implements SchemaRegistryPort {
         return out.toByteArray();
     }
 
+    @Override
+    public int resolveLatestSchemaId(String subject, String url, SchemaRegistryAuthConfig auth) {
+        try {
+            return buildClient(url, auth).getLatestSchemaMetadata(subject).getId();
+        } catch (Exception e) {
+            throw new RuntimeException("Cannot resolve schema for subject=" + subject + ": " + e.getMessage(), e);
+        }
+    }
+
     SchemaRegistryClient buildClient(String url, SchemaRegistryAuthConfig auth) {
         Map<String, Object> config = new HashMap<>();
         if (auth.hasCredentials()) {

@@ -22,6 +22,8 @@ public class DlqMessage {
     private MessageStatus status;
     private boolean schemaDecodeFailed;
     private Instant ingestedAt;
+    private JsonNode replayedDecodedPayload;  // null unless replayed with edited payload
+    private byte[] replayedRawPayload;        // encoded bytes actually sent during replay
 
     private DlqMessage() {}
 
@@ -53,7 +55,8 @@ public class DlqMessage {
             UUID id, UUID dlqConfigId, int partition, long kafkaOffset,
             Instant kafkaTimestamp, byte[] key, byte[] rawPayload,
             JsonNode decodedPayload, Integer schemaId, Map<String, String> headers,
-            MessageStatus status, boolean schemaDecodeFailed, Instant ingestedAt) {
+            MessageStatus status, boolean schemaDecodeFailed, Instant ingestedAt,
+            JsonNode replayedDecodedPayload, byte[] replayedRawPayload) {
         var m = new DlqMessage();
         m.id = id;
         m.dlqConfigId = dlqConfigId;
@@ -68,11 +71,18 @@ public class DlqMessage {
         m.status = status;
         m.schemaDecodeFailed = schemaDecodeFailed;
         m.ingestedAt = ingestedAt;
+        m.replayedDecodedPayload = replayedDecodedPayload;
+        m.replayedRawPayload = replayedRawPayload;
         return m;
     }
 
     public void transitionTo(MessageStatus newStatus) {
         this.status = newStatus;
+    }
+
+    public void setReplayedPayload(JsonNode decoded, byte[] raw) {
+        this.replayedDecodedPayload = decoded;
+        this.replayedRawPayload = raw;
     }
 
     public UUID getId() { return id; }
@@ -88,4 +98,6 @@ public class DlqMessage {
     public MessageStatus getStatus() { return status; }
     public boolean isSchemaDecodeFailed() { return schemaDecodeFailed; }
     public Instant getIngestedAt() { return ingestedAt; }
+    public JsonNode getReplayedDecodedPayload() { return replayedDecodedPayload; }
+    public byte[] getReplayedRawPayload() { return replayedRawPayload; }
 }

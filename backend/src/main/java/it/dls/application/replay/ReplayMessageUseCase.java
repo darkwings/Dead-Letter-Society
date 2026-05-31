@@ -35,6 +35,8 @@ public class ReplayMessageUseCase {
     @Inject ReplayAuditRecordRepository auditRepo;
     @Inject EncryptionPort encryption;
 
+    private static final String VALUE_SUBJECT_SUFFIX = "-value";
+
     private final ReplayTopicResolver topicResolver = new ReplayTopicResolver();
 
     @Transactional
@@ -51,25 +53,22 @@ public class ReplayMessageUseCase {
         var srUrl = sr != null ? sr.url() : null;
         var srAuth = sr != null ? sr.authConfig().decrypted(encryption) : null;
 
-        if (editedPayload != null && srUrl != null) {
-            var validation = schemaRegistry.validate(editedPayload, msg.getSchemaId(), srUrl, srAuth);
-            if (!validation.valid())
-                throw new SchemaValidationException(validation.error());
-        }
-
         var targetTopic = topicResolver.resolve(msg, config, wizardTopicOverride);
+
+        var targetSchemaId = resolveAndValidateTargetSchema(editedPayload, targetTopic, srUrl, srAuth);
 
         var headers = new HashMap<>(msg.getHeaders());
         headers.put("x-dls-replayed-at", Instant.now().toString());
         headers.put("x-dls-replayed-by", replayedBy.toString());
 
         try {
-            var payload = resolvePayload(msg, editedPayload, srUrl, srAuth);
+            var payload = resolvePayload(msg, editedPayload, targetSchemaId, srUrl, srAuth);
 
             producer.publish(cluster.getBootstrapServers(),
                 cluster.getSecurityConfig().decrypted(encryption),
                 targetTopic, msg.getKey(), payload, headers);
 
+            if (editedPayload != null) msg.setReplayedPayload(editedPayload, payload);
             msg.transitionTo(MessageStatus.REPLAYED);
             messageRepo.save(msg);
             auditRepo.save(ReplayAuditRecord.success(messageId, replayedBy,
@@ -100,11 +99,20 @@ public class ReplayMessageUseCase {
             cluster.getSchemaRegistry().url(), srAuth);
     }
 
+    private Integer resolveAndValidateTargetSchema(JsonNode editedPayload, String targetTopic,
+                                                    String srUrl, SchemaRegistryAuthConfig srAuth) {
+        if (editedPayload == null || srUrl == null) return null;
+        int schemaId = schemaRegistry.resolveLatestSchemaId(targetTopic + VALUE_SUBJECT_SUFFIX, srUrl, srAuth);
+        var validation = schemaRegistry.validate(editedPayload, schemaId, srUrl, srAuth);
+        if (!validation.valid()) throw new SchemaValidationException(validation.error());
+        return schemaId;
+    }
+
     private byte[] resolvePayload(DlqMessage msg, JsonNode editedPayload,
-                                   String srUrl, SchemaRegistryAuthConfig srAuth) {
+                                   Integer targetSchemaId, String srUrl, SchemaRegistryAuthConfig srAuth) {
         if (editedPayload == null) return msg.getRawPayload();
-        if (srUrl == null) return editedPayload.toString().getBytes(StandardCharsets.UTF_8);
-        return schemaRegistry.encode(editedPayload, msg.getSchemaId(), srUrl, srAuth);
+        if (srUrl == null || targetSchemaId == null) return editedPayload.toString().getBytes(StandardCharsets.UTF_8);
+        return schemaRegistry.encode(editedPayload, targetSchemaId, srUrl, srAuth);
     }
 
     private void safeNotify(Runnable r) {

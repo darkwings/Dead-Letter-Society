@@ -46,7 +46,8 @@ class RetentionJobIT {
         var msg = DlqMessage.reconstitute(
             UUID.randomUUID(), dlqConfigId, 0, offsetSeq.getAndIncrement(),
             kafkaTimestamp, null, new byte[]{1}, null, null, Map.of(),
-            MessageStatus.NEW, false, Instant.now());
+            MessageStatus.NEW, false, Instant.now(),
+            null, null);
         messageRepo.save(msg);
     }
 

@@ -62,6 +62,19 @@ SCHEMA_ID=$(echo "$RESPONSE" | python3 -c "import json,sys; print(json.load(sys.
 
 echo -e "${GREEN}Registered.${NC}  subject=${SUBJECT}  schemaId=${SCHEMA_ID}"
 
+# ── register source topic schema ─────────────────────────────────────────────
+SOURCE_SUBJECT="orders-value"
+echo -e "${YELLOW}Registering subject '${SOURCE_SUBJECT}'...${NC}"
+
+SOURCE_RESPONSE=$(curl -sf -X POST \
+  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  -d "$BODY" \
+  "${SR_URL}/subjects/${SOURCE_SUBJECT}/versions")
+
+SOURCE_SCHEMA_ID=$(echo "$SOURCE_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+
+echo -e "${GREEN}Registered.${NC}  subject=${SOURCE_SUBJECT}  schemaId=${SOURCE_SCHEMA_ID}"
+
 # ── verify ────────────────────────────────────────────────────────────────────
 echo
 echo -e "${YELLOW}Registered subjects:${NC}"

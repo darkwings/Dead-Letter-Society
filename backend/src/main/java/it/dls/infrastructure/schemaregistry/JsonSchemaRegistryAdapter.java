@@ -39,4 +39,5 @@ public class JsonSchemaRegistryAdapter implements SchemaRegistryPort {
                          String schemaRegistryUrl, SchemaRegistryAuthConfig auth) {
         return payload.toString().getBytes(StandardCharsets.UTF_8);
     }
+
 }

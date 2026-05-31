@@ -113,27 +113,31 @@ class ReplayMessageUseCaseTest {
     }
 
     @Test
-    void editedPayload_withSchemaAndSR_callsEncodeAndSendsResult() throws Exception {
+    void editedPayload_withSchemaAndSR_encodesWithTargetTopicSchema() throws Exception {
         var mapper = new ObjectMapper();
         var edited = mapper.readTree("{\"amount\":50.00}");
-        var encoded = new byte[]{0x00, 0x00, 0x00, 0x00, 0x07, 0x42}; // fake encoded bytes
+        var encoded = new byte[]{0x00, 0x00, 0x00, 0x00, 0x2a, 0x42}; // schema id 42 (orders-value)
         var msg = message(MSG_ID, CONFIG_ID, MessageStatus.NEW,
-            Map.of("x-original-topic", "orders"), 7);
+            Map.of("x-original-topic", "orders"), 7); // 7 = DLQ schema id
         var config = config(CONFIG_ID, CLUSTER_ID);
         var cluster = clusterWithSchemaRegistry(CLUSTER_ID);
         when(messageRepo.findById(MSG_ID)).thenReturn(Optional.of(msg));
         when(configRepo.findById(CONFIG_ID)).thenReturn(Optional.of(config));
         when(clusterRepo.findById(CLUSTER_ID)).thenReturn(Optional.of(cluster));
-        when(schemaRegistry.validate(any(), eq(7), any(), any())).thenReturn(ValidationResult.ok());
-        when(schemaRegistry.encode(eq(edited), eq(7), any(), any())).thenReturn(encoded);
+        when(schemaRegistry.resolveLatestSchemaId(eq("orders-value"), any(), any())).thenReturn(42);
+        when(schemaRegistry.validate(any(), eq(42), any(), any())).thenReturn(ValidationResult.ok());
+        when(schemaRegistry.encode(eq(edited), eq(42), any(), any())).thenReturn(encoded);
 
         var result = useCase.replay(MSG_ID, null, edited, USER_ID);
 
         assertThat(result.success()).isTrue();
-        verify(schemaRegistry).encode(eq(edited), eq(7), any(), any());
+        verify(schemaRegistry).resolveLatestSchemaId(eq("orders-value"), any(), any());
+        verify(schemaRegistry).encode(eq(edited), eq(42), any(), any());
         var payloadCaptor = ArgumentCaptor.forClass(byte[].class);
         verify(producer).publish(any(), any(), any(), any(), payloadCaptor.capture(), any());
         assertThat(payloadCaptor.getValue()).isEqualTo(encoded);
+        assertThat(msg.getReplayedDecodedPayload()).isEqualTo(edited);
+        assertThat(msg.getDecodedPayload()).isNull(); // original unchanged
     }
 
     @Test
@@ -187,8 +191,9 @@ class ReplayMessageUseCaseTest {
         when(messageRepo.findById(MSG_ID)).thenReturn(Optional.of(msg));
         when(configRepo.findById(CONFIG_ID)).thenReturn(Optional.of(config));
         when(clusterRepo.findById(CLUSTER_ID)).thenReturn(Optional.of(cluster));
-        when(schemaRegistry.validate(any(), eq(7), any(), any())).thenReturn(ValidationResult.ok());
-        when(schemaRegistry.encode(any(), eq(7), any(), any()))
+        when(schemaRegistry.resolveLatestSchemaId(eq("orders-value"), any(), any())).thenReturn(42);
+        when(schemaRegistry.validate(any(), eq(42), any(), any())).thenReturn(ValidationResult.ok());
+        when(schemaRegistry.encode(any(), eq(42), any(), any()))
             .thenThrow(new RuntimeException("Encode failed: schema mismatch"));
 
         var result = useCase.replay(MSG_ID, null, edited, USER_ID);
@@ -211,7 +216,8 @@ class ReplayMessageUseCaseTest {
         when(messageRepo.findById(MSG_ID)).thenReturn(Optional.of(msg));
         when(configRepo.findById(CONFIG_ID)).thenReturn(Optional.of(config));
         when(clusterRepo.findById(CLUSTER_ID)).thenReturn(Optional.of(cluster));
-        when(schemaRegistry.validate(any(), eq(7), any(), any()))
+        when(schemaRegistry.resolveLatestSchemaId(eq("orders-value"), any(), any())).thenReturn(42);
+        when(schemaRegistry.validate(any(), eq(42), any(), any()))
             .thenReturn(ValidationResult.fail("amount must be a number"));
 
         assertThatThrownBy(() -> useCase.replay(MSG_ID, null, edited, USER_ID))
@@ -252,7 +258,8 @@ class ReplayMessageUseCaseTest {
     private DlqMessage message(UUID id, UUID configId, MessageStatus status,
                                 Map<String, String> headers, Integer schemaId) {
         return DlqMessage.reconstitute(id, configId, 0, 0L, Instant.now(),
-            null, new byte[]{1, 2, 3}, null, schemaId, headers, status, false, Instant.now());
+            null, new byte[]{1, 2, 3}, null, schemaId, headers, status, false, Instant.now(),
+            null, null);
     }
 
     private DlqConfig config(UUID id, UUID clusterId) {

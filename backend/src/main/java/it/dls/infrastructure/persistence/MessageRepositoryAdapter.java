@@ -28,6 +28,8 @@ public class MessageRepositoryAdapter implements MessageRepository {
             existing.status = message.getStatus();
             existing.decodedPayload = message.getDecodedPayload();
             existing.schemaDecodeFailed = message.isSchemaDecodeFailed();
+            existing.replayedDecodedPayload = message.getReplayedDecodedPayload();
+            existing.replayedRawPayload = message.getReplayedRawPayload();
         }
     }
 

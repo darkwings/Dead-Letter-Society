@@ -2,17 +2,31 @@
 # Produces random DLQ messages to a Kafka topic via Confluent Kafka CLI tools.
 # Plain JSON if no schema registered; Avro (Confluent wire format) if subject exists.
 #
-# Usage: ./scripts/seed-dlq.sh [topic] [count]
-#   topic  — default: orders.dlq
-#   count  — default: 20
+# Usage: ./scripts/seed-dlq.sh [--header] [topic] [count]
+#   --header  — also emit SmallRye dead-letter-* headers (Quarkus framework style)
+#   topic     — default: orders.dlq
+#   count     — default: 20
 #
 # Requires the dev stack running:
 #   docker compose -f docker/docker-compose.dev.yml up -d
 
 set -euo pipefail
 
-TOPIC="${1:-orders.dlq}"
-COUNT="${2:-20}"
+TOPIC="orders.dlq"
+COUNT=20
+FRAMEWORK_HEADERS=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --header) FRAMEWORK_HEADERS=true; shift ;;
+    -*) echo "Unknown option: $1"; exit 1 ;;
+    *)
+      if [[ "$TOPIC" == "orders.dlq" ]]; then TOPIC="$1"
+      else COUNT="$1"
+      fi
+      shift ;;
+  esac
+done
 
 KAFKA_CONTAINER="dls-dev-kafka"
 SR_CONTAINER="dls-dev-schema-registry"
@@ -87,6 +101,10 @@ else
   echo "  Run ./scripts/register-schema.sh to enable Avro encoding."
 fi
 
+if [[ "$USE_AVRO" == "true" && "$FRAMEWORK_HEADERS" == "true" ]]; then
+  echo -e "${YELLOW}Warning: --header ignored in Avro mode (SchemaMessageReader does not support custom headers).${NC}"
+fi
+
 # ── build messages ────────────────────────────────────────────────────────────
 echo -e "${YELLOW}Building ${COUNT} messages...${NC}"
 TMPFILE=$(mktemp)
@@ -118,6 +136,15 @@ for i in $(seq 1 "$COUNT"); do
   HEADERS="x-original-topic:${ORIG_TOPIC}|x-exception-class:${EX_CLASS}\
 |x-exception-message:${EX_MSG}|x-original-partition:${ORIG_PARTITION}\
 |x-original-offset:${ORIG_OFFSET}|x-retry-count:${RETRY_COUNT}"
+
+  if [[ "$FRAMEWORK_HEADERS" == "true" ]]; then
+    HEADERS="${HEADERS}\
+|dead-letter-reason:${EX_MSG}\
+|dead-letter-cause:${EX_CLASS}\
+|dead-letter-topic:${ORIG_TOPIC}\
+|dead-letter-partition:${ORIG_PARTITION}\
+|dead-letter-offset:${ORIG_OFFSET}"
+  fi
 
   # JSON path: HEADERS<TAB>KEY<TAB>VALUE
   # headers.separator defaults to comma; headers.key.separator=: (explicit)

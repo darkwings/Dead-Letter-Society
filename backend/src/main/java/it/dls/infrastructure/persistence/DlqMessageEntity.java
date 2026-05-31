@@ -57,6 +57,13 @@ public class DlqMessageEntity extends PanacheEntityBase {
     @Column(name = "ingested_at")
     public Instant ingestedAt;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "replayed_decoded_payload", columnDefinition = "jsonb")
+    public JsonNode replayedDecodedPayload;
+
+    @Column(name = "replayed_raw_payload")
+    public byte[] replayedRawPayload;
+
     public static DlqMessageEntity fromDomain(DlqMessage m) {
         var e = new DlqMessageEntity();
         e.id = m.getId();
@@ -72,6 +79,8 @@ public class DlqMessageEntity extends PanacheEntityBase {
         e.status = m.getStatus();
         e.schemaDecodeFailed = m.isSchemaDecodeFailed();
         e.ingestedAt = m.getIngestedAt();
+        e.replayedDecodedPayload = m.getReplayedDecodedPayload();
+        e.replayedRawPayload = m.getReplayedRawPayload();
         return e;
     }
 
@@ -79,6 +88,7 @@ public class DlqMessageEntity extends PanacheEntityBase {
         return DlqMessage.reconstitute(
             id, dlqConfigId, partition, kafkaOffset, kafkaTimestamp,
             key, rawPayload, decodedPayload, schemaId, headers,
-            status, schemaDecodeFailed, ingestedAt);
+            status, schemaDecodeFailed, ingestedAt,
+            replayedDecodedPayload, replayedRawPayload);
     }
 }
