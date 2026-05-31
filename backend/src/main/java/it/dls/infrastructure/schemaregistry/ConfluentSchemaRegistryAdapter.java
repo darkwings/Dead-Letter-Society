@@ -15,8 +15,13 @@ import it.dls.domain.shared.SchemaRegistryPort;
 import it.dls.domain.shared.ValidationResult;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.avro.generic.GenericDatumReader;
+import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DecoderFactory;
+import org.apache.avro.io.EncoderFactory;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import org.jboss.logging.Logger;
 
 import java.nio.ByteBuffer;
@@ -71,7 +76,44 @@ public class ConfluentSchemaRegistryAdapter implements SchemaRegistryPort {
     @Override
     public byte[] encode(JsonNode payload, int schemaId,
                          String schemaRegistryUrl, SchemaRegistryAuthConfig auth) {
-        throw new UnsupportedOperationException("ConfluentSchemaRegistryAdapter.encode() not yet implemented");
+        try {
+            var client = buildClient(schemaRegistryUrl, auth);
+            var schema = client.getSchemaById(schemaId);
+            return switch (schema.schemaType()) {
+                case "AVRO"     -> encodeAvro(payload, (AvroSchema) schema, schemaId);
+                case "JSON"     -> encodeJsonSchema(payload, schemaId);
+                case "PROTOBUF" -> throw new UnsupportedOperationException(
+                                       "Protobuf encode not supported — blocked on Confluent 8.x upgrade");
+                default -> payload.toString().getBytes(StandardCharsets.UTF_8);
+            };
+        } catch (UnsupportedOperationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Encode failed for schemaId=" + schemaId + ": " + e.getMessage(), e);
+        }
+    }
+
+    private byte[] encodeAvro(JsonNode payload, AvroSchema schema, int schemaId) throws Exception {
+        var avroSchema = schema.rawSchema();
+        var reader = new GenericDatumReader<GenericRecord>(avroSchema);
+        var decoder = DecoderFactory.get().jsonDecoder(avroSchema, payload.toString());
+        var record = reader.read(null, decoder);
+
+        var baos = new ByteArrayOutputStream();
+        baos.write(0x00);
+        baos.write(ByteBuffer.allocate(4).putInt(schemaId).array());
+        var encoder = EncoderFactory.get().binaryEncoder(baos, null);
+        new GenericDatumWriter<GenericRecord>(avroSchema).write(record, encoder);
+        encoder.flush();
+        return baos.toByteArray();
+    }
+
+    private byte[] encodeJsonSchema(JsonNode payload, int schemaId) throws Exception {
+        var baos = new ByteArrayOutputStream();
+        baos.write(0x00);
+        baos.write(ByteBuffer.allocate(4).putInt(schemaId).array());
+        baos.write(payload.toString().getBytes(StandardCharsets.UTF_8));
+        return baos.toByteArray();
     }
 
     SchemaRegistryClient buildClient(String url, SchemaRegistryAuthConfig auth) {

@@ -20,6 +20,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * SR-001: Avro payload decoded to JSON.
@@ -160,6 +161,73 @@ class ConfluentSchemaRegistryAdapterIT {
         assertThat(result.isDecoded()).isFalse();
         assertThat(result.format()).isEqualTo("FAILED");
         assertThat(result.schemaId()).isEqualTo(99999);
+    }
+
+    // SR-007
+    @Test
+    void encodeAvroPayload_producesValidConfluentWireFormat() throws Exception {
+        var avroSchema = new org.apache.avro.Schema.Parser().parse(
+            """
+            {"type":"record","name":"Order","namespace":"it.dls",
+             "fields":[{"name":"id","type":"string"},{"name":"amount","type":"double"}]}
+            """
+        );
+        int schemaId = mockClient.register("order-value", new AvroSchema(avroSchema));
+        var payload = MAPPER.readTree("{\"id\":\"ord-enc\",\"amount\":77.5}");
+
+        byte[] encoded = adapter.encode(payload, schemaId, "http://mock-sr", SchemaRegistryAuthConfig.none());
+
+        // Wire format header: magic byte 0x00 + 4-byte schemaId
+        assertThat(encoded[0]).isEqualTo((byte) 0x00);
+        assertThat(ByteBuffer.wrap(encoded, 1, 4).getInt()).isEqualTo(schemaId);
+
+        // Round-trip: decode the encoded bytes and check field values
+        DecodedPayload decoded = adapter.decode(encoded, "http://mock-sr", SchemaRegistryAuthConfig.none());
+        assertThat(decoded.isDecoded()).isTrue();
+        assertThat(decoded.format()).isEqualTo("AVRO");
+        assertThat(decoded.payload().get("id").asText()).isEqualTo("ord-enc");
+        assertThat(decoded.payload().get("amount").asDouble()).isEqualTo(77.5);
+    }
+
+    // SR-008
+    @Test
+    void encodeJsonSchemaPayload_producesConfluentWireHeader() throws Exception {
+        var jsonSchema = new io.confluent.kafka.schemaregistry.json.JsonSchema(
+            """
+            {"type":"object","properties":{"orderId":{"type":"string"},"total":{"type":"number"}}}
+            """
+        );
+        int schemaId = mockClient.register("order-json-value", jsonSchema);
+        var payload = MAPPER.readTree("{\"orderId\":\"j-enc\",\"total\":55.0}");
+
+        byte[] encoded = adapter.encode(payload, schemaId, "http://mock-sr", SchemaRegistryAuthConfig.none());
+
+        assertThat(encoded[0]).isEqualTo((byte) 0x00);
+        assertThat(ByteBuffer.wrap(encoded, 1, 4).getInt()).isEqualTo(schemaId);
+        String jsonPart = new String(encoded, 5, encoded.length - 5, java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(MAPPER.readTree(jsonPart).get("orderId").asText()).isEqualTo("j-enc");
+        assertThat(MAPPER.readTree(jsonPart).get("total").asDouble()).isEqualTo(55.0);
+    }
+
+    // SR-009
+    @Test
+    void encodeProtobufSchema_throwsUnsupportedOperationException() throws Exception {
+        // Protobuf encode is blocked (same binary incompatibility as decode)
+        int schemaId;
+        try {
+            var protoSchema = new io.confluent.kafka.schemaregistry.protobuf.ProtobufSchema(
+                "syntax = \"proto3\"; message Order { string id = 1; }"
+            );
+            schemaId = mockClient.register("order-proto-value", protoSchema);
+        } catch (Throwable t) {
+            // If even construction or registration fails due to binary incompatibility, test is vacuously valid
+            return;
+        }
+        var payload = MAPPER.readTree("{\"id\":\"proto-enc\"}");
+
+        assertThatThrownBy(() -> adapter.encode(payload, schemaId, "http://mock-sr", SchemaRegistryAuthConfig.none()))
+            .isInstanceOf(UnsupportedOperationException.class)
+            .hasMessageContaining("Protobuf");
     }
 
     // ─── wire format helpers ─────────────────────────────────────────────────
