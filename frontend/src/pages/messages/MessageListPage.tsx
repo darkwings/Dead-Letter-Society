@@ -177,6 +177,24 @@ export default function MessageListPage() {
     onError: (e: Error) => toast.error(e.message),
   })
 
+  const bulkDiscardMutation = useMutation({
+    mutationFn: () => apiFetch<{ succeeded: number; failed: number }>(
+      `/api/dlq-configs/${configId}/messages/bulk-discard`,
+      { method: 'POST', body: JSON.stringify({ messageIds: [...selectedIds] }) }
+    ),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['messages', configId] })
+      queryClient.invalidateQueries({ queryKey: ['dlq-badge', configId] })
+      setSelectedIds(new Set())
+      if (result.failed === 0) {
+        toast.success(`${result.succeeded} message${result.succeeded !== 1 ? 's' : ''} discarded`)
+      } else {
+        toast.warning(`${result.succeeded} discarded, ${result.failed} failed`)
+      }
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
   return (
     <div style={{ padding: 32, display: 'flex', gap: 20 }}>
       {/* Filter panel */}
@@ -259,14 +277,23 @@ export default function MessageListPage() {
               </Link>
             )}
             {isOperator && selectedIds.size > 0 && (
-              <button
-                className="btn btn-primary"
-                disabled={!canBulkReplay || bulkReplayMutation.isPending}
-                onClick={() => bulkReplayMutation.mutate()}
-                title={!canBulkReplay ? 'No replay topic configured' : undefined}
-              >
-                {bulkReplayMutation.isPending ? 'Replaying…' : `Replay (${selectedIds.size} selected)`}
-              </button>
+              <>
+                <button
+                  className="btn btn-secondary"
+                  disabled={bulkDiscardMutation.isPending || bulkReplayMutation.isPending}
+                  onClick={() => bulkDiscardMutation.mutate()}
+                >
+                  {bulkDiscardMutation.isPending ? 'Discarding…' : `Discard (${selectedIds.size} selected)`}
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={!canBulkReplay || bulkReplayMutation.isPending || bulkDiscardMutation.isPending}
+                  onClick={() => bulkReplayMutation.mutate()}
+                  title={!canBulkReplay ? 'No replay topic configured' : undefined}
+                >
+                  {bulkReplayMutation.isPending ? 'Replaying…' : `Replay (${selectedIds.size} selected)`}
+                </button>
+              </>
             )}
             <button
               className="btn btn-secondary"

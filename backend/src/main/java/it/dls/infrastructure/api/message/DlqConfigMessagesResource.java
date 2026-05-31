@@ -1,6 +1,7 @@
 package it.dls.infrastructure.api.message;
 
 import it.dls.application.inspection.InspectMessagesUseCase;
+import it.dls.application.inspection.BulkDiscardResult;
 import it.dls.application.replay.BulkReplayUseCase;
 import it.dls.domain.message.MessageFilter;
 import it.dls.domain.message.MessageStatus;
@@ -64,6 +65,24 @@ public class DlqConfigMessagesResource {
         }
         try {
             var result = bulkReplay.bulkReplay(configId, req.messageIds(), currentUserId());
+            return Response.ok(result).build();
+        } catch (IllegalArgumentException e) {
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
+        } catch (SecurityException e) {
+            return ProblemDetail.forbidden(e.getMessage()).toResponse();
+        }
+    }
+
+    @POST
+    @Path("/bulk-discard")
+    @RolesAllowed({"ADMIN", "OPERATOR"})
+    public Response bulkDiscard(@PathParam("configId") UUID configId, BulkReplayRequest req) {
+        if (req == null || req.messageIds() == null || req.messageIds().isEmpty()) {
+            return ProblemDetail.badRequest("messageIds must not be empty").toResponse();
+        }
+        try {
+            BulkDiscardResult result = inspectMessages.bulkDiscard(configId, req.messageIds(),
+                currentUserId(), isAdmin());
             return Response.ok(result).build();
         } catch (IllegalArgumentException e) {
             return ProblemDetail.notFound(e.getMessage()).toResponse();
