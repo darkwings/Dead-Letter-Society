@@ -11,11 +11,17 @@ import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
@@ -45,6 +51,9 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
             conn.setConnectTimeout(5000);
             conn.setReadTimeout(5000);
             conn.setRequestMethod("GET");
+            if (auth.hasTruststore() && conn instanceof HttpsURLConnection https) {
+                https.setSSLSocketFactory(buildSslContext(auth.truststorePem()).getSocketFactory());
+            }
             if (auth.hasCredentials()) {
                 String creds = auth.encryptedUsername() + ":" + auth.encryptedPassword();
                 String encoded = Base64.getEncoder()
@@ -82,6 +91,7 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
                 props.put(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG, "PEM");
                 props.put(SslConfigs.SSL_KEYSTORE_CERTIFICATE_CHAIN_CONFIG,
                     security.encryptedKeystorePem());
+                applyTruststore(props, security.encryptedTruststorePem());
             }
             case SASL_PLAIN -> {
                 props.put("security.protocol",
@@ -90,6 +100,7 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
                 props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
                     "org.apache.kafka.common.security.plain.PlainLoginModule",
                     security.encryptedUsername(), security.encryptedPassword()));
+                if (security.tlsEnabled()) applyTruststore(props, security.encryptedTruststorePem());
             }
             case SASL_SCRAM_SHA_256 -> {
                 props.put("security.protocol",
@@ -98,6 +109,7 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
                 props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
                     "org.apache.kafka.common.security.scram.ScramLoginModule",
                     security.encryptedUsername(), security.encryptedPassword()));
+                if (security.tlsEnabled()) applyTruststore(props, security.encryptedTruststorePem());
             }
             case SASL_SCRAM_SHA_512 -> {
                 props.put("security.protocol",
@@ -106,9 +118,38 @@ public class KafkaConnectivityAdapter implements ConnectivityValidationPort {
                 props.put(SaslConfigs.SASL_JAAS_CONFIG, buildJaas(
                     "org.apache.kafka.common.security.scram.ScramLoginModule",
                     security.encryptedUsername(), security.encryptedPassword()));
+                if (security.tlsEnabled()) applyTruststore(props, security.encryptedTruststorePem());
             }
         }
         return props;
+    }
+
+    private static void applyTruststore(Properties props, String truststorePem) {
+        if (truststorePem == null || truststorePem.isBlank()) return;
+        props.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "PEM");
+        props.put(SslConfigs.SSL_TRUSTSTORE_CERTIFICATES_CONFIG, truststorePem);
+    }
+
+    // Builds an SSLContext that trusts the supplied PEM CA cert — used for HTTPS SR connectivity test.
+    private static SSLContext buildSslContext(String caPem) throws Exception {
+        String stripped = caPem
+            .replaceAll("-----BEGIN CERTIFICATE-----", "")
+            .replaceAll("-----END CERTIFICATE-----", "")
+            .replaceAll("\\s+", "");
+        byte[] certBytes = Base64.getDecoder().decode(stripped);
+        X509Certificate cert = (X509Certificate) CertificateFactory.getInstance("X.509")
+            .generateCertificate(new ByteArrayInputStream(certBytes));
+
+        KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+        ks.load(null, null);
+        ks.setCertificateEntry("ca", cert);
+
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(ks);
+
+        SSLContext ctx = SSLContext.getInstance("TLS");
+        ctx.init(null, tmf.getTrustManagers(), null);
+        return ctx;
     }
 
     private String buildJaas(String loginModule, String username, String password) {

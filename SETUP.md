@@ -78,6 +78,40 @@ DLS_ENCRYPTION_KEY=<32-char key from above>
 
 ---
 
+## Cluster TLS configuration
+
+When adding a Kafka cluster or Schema Registry that uses TLS, DLS needs to trust the server's
+certificate. For brokers with certificates signed by a **public CA** (e.g. AWS MSK, Confluent
+Cloud) no extra configuration is needed — the JVM's default trust store covers them.
+
+For **custom / self-signed CA** deployments, paste the CA certificate PEM into the appropriate
+field when creating the cluster in the DLS UI:
+
+| Field | When to fill |
+|-------|-------------|
+| **CA Certificate PEM** (Kafka) | `SSL` protocol, or any `SASL_*` with TLS enabled |
+| **Schema Registry CA Certificate PEM** | Schema Registry URL starts with `https://` |
+
+**Extract the CA cert from your broker:**
+
+```bash
+# From a running broker (replace host:port)
+openssl s_client -connect <broker-host>:9093 -showcerts </dev/null 2>/dev/null \
+  | openssl x509 -out ca.crt
+cat ca.crt   # paste this into the DLS field
+```
+
+**Or from the TLS test stack (local):**
+
+```bash
+cat docker/tls-test/certs/ca.crt
+```
+
+The PEM value is stored AES-256-GCM encrypted in PostgreSQL alongside the other cluster
+credentials. It is decrypted in memory only when establishing a connection.
+
+---
+
 ## Authentication modes
 
 ### Standalone mode (built-in user management)

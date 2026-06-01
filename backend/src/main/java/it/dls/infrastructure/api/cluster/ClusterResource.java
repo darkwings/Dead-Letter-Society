@@ -41,8 +41,8 @@ public class ClusterResource {
             var cmd = new RegisterClusterCommand(
                 req.name(), req.bootstrapServers(), req.securityProtocol(),
                 req.tlsEnabled() != null ? req.tlsEnabled() : true,
-                req.username(), req.password(), req.keystorePem(),
-                req.srUrl(), req.srUsername(), req.srPassword()
+                req.username(), req.password(), req.keystorePem(), req.truststorePem(),
+                req.srUrl(), req.srUsername(), req.srPassword(), req.srTruststorePem()
             );
             var cluster = manageCluster.registerCluster(cmd);
             return Response.created(URI.create("/api/clusters/" + cluster.getId()))

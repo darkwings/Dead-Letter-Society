@@ -7,7 +7,8 @@ public record KafkaSecurityConfig(
     boolean tlsEnabled,
     String encryptedUsername,
     String encryptedPassword,
-    String encryptedKeystorePem
+    String encryptedKeystorePem,
+    String encryptedTruststorePem   // null = use JVM default cacerts (public CA brokers)
 ) {
     public KafkaSecurityConfig {
         if (protocol == null) throw new IllegalArgumentException("protocol must not be null");
@@ -23,29 +24,30 @@ public record KafkaSecurityConfig(
     }
 
     public static KafkaSecurityConfig plaintext() {
-        return new KafkaSecurityConfig(KafkaSecurityProtocol.PLAINTEXT, false, null, null, null);
+        return new KafkaSecurityConfig(KafkaSecurityProtocol.PLAINTEXT, false, null, null, null, null);
     }
 
-    public static KafkaSecurityConfig ssl(String encryptedKeystorePem) {
-        return new KafkaSecurityConfig(KafkaSecurityProtocol.SSL, true, null, null, encryptedKeystorePem);
+    public static KafkaSecurityConfig ssl(String encryptedKeystorePem, String encryptedTruststorePem) {
+        return new KafkaSecurityConfig(KafkaSecurityProtocol.SSL, true, null, null,
+            encryptedKeystorePem, encryptedTruststorePem);
     }
 
     public static KafkaSecurityConfig saslPlain(String encryptedUsername, String encryptedPassword,
-                                                 boolean tlsEnabled) {
+                                                 boolean tlsEnabled, String encryptedTruststorePem) {
         return new KafkaSecurityConfig(KafkaSecurityProtocol.SASL_PLAIN,
-            tlsEnabled, encryptedUsername, encryptedPassword, null);
+            tlsEnabled, encryptedUsername, encryptedPassword, null, encryptedTruststorePem);
     }
 
     public static KafkaSecurityConfig saslScram256(String encryptedUsername, String encryptedPassword,
-                                                    boolean tlsEnabled) {
+                                                    boolean tlsEnabled, String encryptedTruststorePem) {
         return new KafkaSecurityConfig(KafkaSecurityProtocol.SASL_SCRAM_SHA_256,
-            tlsEnabled, encryptedUsername, encryptedPassword, null);
+            tlsEnabled, encryptedUsername, encryptedPassword, null, encryptedTruststorePem);
     }
 
     public static KafkaSecurityConfig saslScram512(String encryptedUsername, String encryptedPassword,
-                                                    boolean tlsEnabled) {
+                                                    boolean tlsEnabled, String encryptedTruststorePem) {
         return new KafkaSecurityConfig(KafkaSecurityProtocol.SASL_SCRAM_SHA_512,
-            tlsEnabled, encryptedUsername, encryptedPassword, null);
+            tlsEnabled, encryptedUsername, encryptedPassword, null, encryptedTruststorePem);
     }
 
     public KafkaSecurityConfig decrypted(EncryptionPort encryption) {
@@ -53,7 +55,8 @@ public record KafkaSecurityConfig(
             protocol, tlsEnabled,
             encryptedUsername != null ? encryption.decrypt(encryptedUsername) : null,
             encryptedPassword != null ? encryption.decrypt(encryptedPassword) : null,
-            encryptedKeystorePem != null ? encryption.decrypt(encryptedKeystorePem) : null
+            encryptedKeystorePem != null ? encryption.decrypt(encryptedKeystorePem) : null,
+            encryptedTruststorePem != null ? encryption.decrypt(encryptedTruststorePem) : null
         );
     }
 }

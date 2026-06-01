@@ -274,7 +274,7 @@ class ReplayMessageUseCaseTest {
     }
 
     private KafkaCluster clusterWithSchemaRegistry(UUID id) {
-        var sr = new SchemaRegistryConfig("http://sr:8081", null, null);
+        var sr = new SchemaRegistryConfig("http://sr:8081", null, null, null);
         return KafkaCluster.reconstitute(id, "test-cluster", "localhost:9092",
             KafkaSecurityConfig.plaintext(), sr);
     }

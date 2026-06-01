@@ -10,7 +10,9 @@ public record CreateClusterRequest(
     String username,
     String password,
     String keystorePem,
+    String truststorePem,
     String srUrl,
     String srUsername,
-    String srPassword
+    String srPassword,
+    String srTruststorePem
 ) {}

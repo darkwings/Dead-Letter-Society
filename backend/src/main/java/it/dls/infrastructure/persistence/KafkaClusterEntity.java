@@ -32,6 +32,9 @@ public class KafkaClusterEntity extends PanacheEntityBase {
     @Column(name = "encrypted_keystore")
     public String encryptedKeystorePem;
 
+    @Column(name = "encrypted_truststore")
+    public String encryptedTruststorePem;
+
     @Column(name = "tls_enabled")
     public boolean tlsEnabled;
 
@@ -43,6 +46,9 @@ public class KafkaClusterEntity extends PanacheEntityBase {
 
     @Column(name = "sr_encrypted_pass")
     public String srEncryptedPassword;
+
+    @Column(name = "sr_encrypted_truststore")
+    public String srEncryptedTruststorePem;
 
     @Column(name = "created_at")
     public Instant createdAt;
@@ -59,11 +65,13 @@ public class KafkaClusterEntity extends PanacheEntityBase {
         e.encryptedUsername = c.getSecurityConfig().encryptedUsername();
         e.encryptedPassword = c.getSecurityConfig().encryptedPassword();
         e.encryptedKeystorePem = c.getSecurityConfig().encryptedKeystorePem();
+        e.encryptedTruststorePem = c.getSecurityConfig().encryptedTruststorePem();
         e.tlsEnabled = c.getSecurityConfig().tlsEnabled();
         if (c.getSchemaRegistry() != null) {
             e.srUrl = c.getSchemaRegistry().url();
             e.srEncryptedUsername = c.getSchemaRegistry().encryptedUsername();
             e.srEncryptedPassword = c.getSchemaRegistry().encryptedPassword();
+            e.srEncryptedTruststorePem = c.getSchemaRegistry().encryptedTruststorePem();
         }
         e.createdAt = Instant.now();
         e.updatedAt = Instant.now();
@@ -72,9 +80,10 @@ public class KafkaClusterEntity extends PanacheEntityBase {
 
     public KafkaCluster toDomain() {
         var security = new KafkaSecurityConfig(securityProtocol, tlsEnabled,
-            encryptedUsername, encryptedPassword, encryptedKeystorePem);
+            encryptedUsername, encryptedPassword, encryptedKeystorePem, encryptedTruststorePem);
         SchemaRegistryConfig sr = srUrl != null
-            ? new SchemaRegistryConfig(srUrl, srEncryptedUsername, srEncryptedPassword)
+            ? new SchemaRegistryConfig(srUrl, srEncryptedUsername, srEncryptedPassword,
+                                       srEncryptedTruststorePem)
             : null;
         return KafkaCluster.reconstitute(id, name, bootstrapServers, security, sr);
     }

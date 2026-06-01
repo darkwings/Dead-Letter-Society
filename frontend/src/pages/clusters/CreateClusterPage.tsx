@@ -28,13 +28,16 @@ const schema = z.object({
   name: z.string().min(1, 'Name required'),
   bootstrapServers: z.string().min(1, 'Bootstrap servers required'),
   securityProtocol: z.enum(PROTOCOLS),
+  tlsEnabled: z.boolean().optional(),
   username: z.string().optional(),
   password: z.string().optional(),
   keystorePem: z.string().optional(),
+  truststorePem: z.string().optional(),
   srUrl: z.string().optional(),
   srAuthMode: z.enum(SR_AUTH_MODES).optional(),
   srUsername: z.string().optional(),
   srPassword: z.string().optional(),
+  srTruststorePem: z.string().optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -44,10 +47,15 @@ export default function CreateClusterPage() {
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { securityProtocol: 'PLAINTEXT', srAuthMode: 'none' },
+    defaultValues: { securityProtocol: 'PLAINTEXT', tlsEnabled: true, srAuthMode: 'none' },
   })
   const protocol = watch('securityProtocol')
+  const tlsEnabled = watch('tlsEnabled')
   const srAuthMode = watch('srAuthMode') as SrAuthMode
+  const srUrl = watch('srUrl') ?? ''
+  const isSasl = SASL_PROTOCOLS.includes(protocol as Protocol)
+  const showTruststore = protocol === 'SSL' || (isSasl && tlsEnabled)
+  const showSrTruststore = srUrl.toLowerCase().startsWith('https://')
 
   const mutation = useMutation({
     mutationFn: (data: FormValues) => {
@@ -101,7 +109,7 @@ export default function CreateClusterPage() {
             </select>
           </div>
 
-          {SASL_PROTOCOLS.includes(protocol as Protocol) && (
+          {isSasl && (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label htmlFor="username" style={{ fontSize: 12, fontWeight: 500 }}>Username</label>
@@ -111,13 +119,32 @@ export default function CreateClusterPage() {
                 <label htmlFor="clusterPassword" style={{ fontSize: 12, fontWeight: 500 }}>Password</label>
                 <input id="clusterPassword" type="password" className="input" {...register('password')} />
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input id="tlsEnabled" type="checkbox" {...register('tlsEnabled')} />
+                <label htmlFor="tlsEnabled" style={{ fontSize: 12, fontWeight: 500 }}>Enable TLS (SASL_SSL)</label>
+              </div>
             </>
           )}
 
           {protocol === 'SSL' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label htmlFor="keystorePem" style={{ fontSize: 12, fontWeight: 500 }}>Keystore PEM</label>
-              <input id="keystorePem" className="input" {...register('keystorePem')} />
+              <label htmlFor="keystorePem" style={{ fontSize: 12, fontWeight: 500 }}>Keystore PEM (client cert for mTLS)</label>
+              <textarea id="keystorePem" className="input" rows={4}
+                style={{ fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                {...register('keystorePem')} />
+            </div>
+          )}
+
+          {showTruststore && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label htmlFor="truststorePem" style={{ fontSize: 12, fontWeight: 500 }}>
+                CA Certificate PEM (optional — leave blank for public CA brokers)
+              </label>
+              <textarea id="truststorePem" className="input" rows={4}
+                style={{ fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                {...register('truststorePem')} />
             </div>
           )}
 
@@ -150,6 +177,18 @@ export default function CreateClusterPage() {
                 <input id="srPassword" type="password" className="input" {...register('srPassword')} />
               </div>
             </>
+          )}
+
+          {showSrTruststore && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label htmlFor="srTruststorePem" style={{ fontSize: 12, fontWeight: 500 }}>
+                Schema Registry CA Certificate PEM (optional — leave blank for public CA)
+              </label>
+              <textarea id="srTruststorePem" className="input" rows={4}
+                style={{ fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                {...register('srTruststorePem')} />
+            </div>
           )}
 
           <button

@@ -19,7 +19,7 @@ class KafkaClusterRepositoryAdapterIT {
     void saveAndFindById() {
         var cluster = KafkaCluster.create("localhost:9092", "dev",
             KafkaSecurityConfig.plaintext(),
-            new SchemaRegistryConfig("http://sr:8081", null, null));
+            new SchemaRegistryConfig("http://sr:8081", null, null, null));
         repo.save(cluster);
         var found = repo.findById(cluster.getId());
         assertThat(found).isPresent();
@@ -75,7 +75,7 @@ class KafkaClusterRepositoryAdapterIT {
     @TestTransaction
     void saslClusterRoundTrip() {
         var cluster = KafkaCluster.create("broker:9092", "sasl-cluster",
-            KafkaSecurityConfig.saslPlain("enc-user", "enc-pass", true), null);
+            KafkaSecurityConfig.saslPlain("enc-user", "enc-pass", true, null), null);
         repo.save(cluster);
         var found = repo.findById(cluster.getId()).get();
         assertThat(found.getSecurityConfig().protocol()).isEqualTo(KafkaSecurityProtocol.SASL_PLAIN);

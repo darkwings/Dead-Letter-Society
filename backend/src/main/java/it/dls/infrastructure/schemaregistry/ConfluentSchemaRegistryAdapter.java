@@ -130,6 +130,10 @@ public class ConfluentSchemaRegistryAdapter implements SchemaRegistryPort {
             config.put("schema.registry.basic.auth.user.info",
                 auth.encryptedUsername() + ":" + auth.encryptedPassword());
         }
+        if (auth.hasTruststore()) {
+            config.put("ssl.truststore.type", "PEM");
+            config.put("ssl.truststore.certificates", auth.truststorePem());
+        }
         return new CachedSchemaRegistryClient(url, 100, config);
     }
 

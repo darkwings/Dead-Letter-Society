@@ -282,8 +282,7 @@ class FetchMessagesUseCaseTest {
     }
 
     private KafkaCluster buildClusterWithSR() {
-        var sr = new it.dls.domain.cluster.SchemaRegistryConfig(
-            "http://registry:8081", null, null);
+        var sr = new it.dls.domain.cluster.SchemaRegistryConfig("http://registry:8081", null, null, null);
         return KafkaCluster.reconstitute(
             UUID.randomUUID(), "Test Cluster", "localhost:9092",
             KafkaSecurityConfig.plaintext(), sr);

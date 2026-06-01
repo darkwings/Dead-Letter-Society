@@ -50,7 +50,7 @@ class KafkaClusterTest {
 
     @Test
     void createClusterWithSchemaRegistry() {
-        var sr = new SchemaRegistryConfig("http://sr:8081", null, null);
+        var sr = new SchemaRegistryConfig("http://sr:8081", null, null, null);
         var cluster = KafkaCluster.create(
             "localhost:9092", "prod",
             KafkaSecurityConfig.plaintext(), sr);
@@ -60,13 +60,13 @@ class KafkaClusterTest {
 
     @Test
     void schemaRegistryAuthConfigNoCredentials() {
-        var sr = new SchemaRegistryConfig("http://sr:8081", null, null);
+        var sr = new SchemaRegistryConfig("http://sr:8081", null, null, null);
         assertThat(sr.authConfig().hasCredentials()).isFalse();
     }
 
     @Test
     void schemaRegistryAuthConfigWithCredentials() {
-        var sr = new SchemaRegistryConfig("http://sr:8081", "enc-user", "enc-pass");
+        var sr = new SchemaRegistryConfig("http://sr:8081", "enc-user", "enc-pass", null);
         assertThat(sr.authConfig().hasCredentials()).isTrue();
         assertThat(sr.authConfig().encryptedUsername()).isEqualTo("enc-user");
     }
@@ -99,7 +99,7 @@ class KafkaClusterTest {
     void updateSecurityConfigAppliesValue() {
         var cluster = KafkaCluster.create("localhost:9092", "prod",
             KafkaSecurityConfig.plaintext(), null);
-        var sasl = KafkaSecurityConfig.saslPlain("enc-user", "enc-pass", true);
+        var sasl = KafkaSecurityConfig.saslPlain("enc-user", "enc-pass", true, null);
         cluster.updateSecurityConfig(sasl);
         assertThat(cluster.getSecurityConfig().protocol()).isEqualTo(KafkaSecurityProtocol.SASL_PLAIN);
     }
@@ -115,23 +115,23 @@ class KafkaClusterTest {
     @Test
     void saslSecurityConfigRequiresCredentials() {
         assertThatThrownBy(() ->
-            new KafkaSecurityConfig(KafkaSecurityProtocol.SASL_PLAIN, false, null, null, null))
+            new KafkaSecurityConfig(KafkaSecurityProtocol.SASL_PLAIN, false, null, null, null, null))
             .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void schemaRegistryRequiresUrl() {
-        assertThatThrownBy(() -> new SchemaRegistryConfig(null, null, null))
+        assertThatThrownBy(() -> new SchemaRegistryConfig(null, null, null, null))
             .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void saslScram256Config_stores_tlsEnabled() {
-        var config = KafkaSecurityConfig.saslScram256("enc-user", "enc-pass", false);
+        var config = KafkaSecurityConfig.saslScram256("enc-user", "enc-pass", false, null);
         assertThat(config.tlsEnabled()).isFalse();
         assertThat(config.protocol()).isEqualTo(KafkaSecurityProtocol.SASL_SCRAM_SHA_256);
 
-        var configTls = KafkaSecurityConfig.saslScram256("enc-user", "enc-pass", true);
+        var configTls = KafkaSecurityConfig.saslScram256("enc-user", "enc-pass", true, null);
         assertThat(configTls.tlsEnabled()).isTrue();
     }
 }

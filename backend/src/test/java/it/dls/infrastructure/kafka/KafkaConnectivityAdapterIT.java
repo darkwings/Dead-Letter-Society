@@ -41,7 +41,7 @@ class KafkaConnectivityAdapterIT {
     @Test
     @EnabledIfSystemProperty(named = "sasl.test.enabled", matches = "true")
     void testKafka_saslScram256_saslPlaintext_succeeds() {
-        var security = KafkaSecurityConfig.saslScram256("admin", "admin-secret", false);
+        var security = KafkaSecurityConfig.saslScram256("admin", "admin-secret", false, null);
         var result = connectivity.testKafka("localhost:19092", security);
         assertThat(result.success()).isTrue();
     }
@@ -49,7 +49,7 @@ class KafkaConnectivityAdapterIT {
     @Test
     @EnabledIfSystemProperty(named = "sasl.test.enabled", matches = "true")
     void testKafka_saslScram256_wrongPassword_fails() {
-        var security = KafkaSecurityConfig.saslScram256("admin", "wrong-password", false);
+        var security = KafkaSecurityConfig.saslScram256("admin", "wrong-password", false, null);
         var result = connectivity.testKafka("localhost:19092", security);
         assertThat(result.success()).isFalse();
         assertThat(result.errorMessage()).isNotBlank();
@@ -58,7 +58,7 @@ class KafkaConnectivityAdapterIT {
     @Test
     @EnabledIfSystemProperty(named = "sasl.test.enabled", matches = "true")
     void testSchemaRegistry_basicAuth_succeeds() {
-        var auth = new SchemaRegistryAuthConfig("sr-reader", "sr-reader-secret");
+        var auth = new SchemaRegistryAuthConfig("sr-reader", "sr-reader-secret", null);
         var result = connectivity.testSchemaRegistry("http://localhost:18081", auth);
         assertThat(result.success()).isTrue();
     }
@@ -66,7 +66,7 @@ class KafkaConnectivityAdapterIT {
     @Test
     @EnabledIfSystemProperty(named = "sasl.test.enabled", matches = "true")
     void testSchemaRegistry_wrongPassword_fails() {
-        var auth = new SchemaRegistryAuthConfig("sr-reader", "wrong-password");
+        var auth = new SchemaRegistryAuthConfig("sr-reader", "wrong-password", null);
         var result = connectivity.testSchemaRegistry("http://localhost:18081", auth);
         assertThat(result.success()).isFalse();
     }

@@ -1,6 +1,6 @@
 # Local Development — Plaintext Stack
 
-No-auth local development using Redpanda (Kafka-compatible) and Confluent Schema Registry.
+No-auth local development using Confluent Kafka and Confluent Schema Registry.
 No credentials required. Suitable for feature development and unit/E2E testing.
 
 For authenticated local stacks see:
@@ -21,9 +21,10 @@ docker compose -f docker/docker-compose.dev.yml up -d
 
 | Container                  | Port | Purpose                    |
 |----------------------------|------|----------------------------|
-| `dls-dev-kafka`            | 9092 | Redpanda broker (PLAINTEXT)|
-| `dls-dev-schema-registry`  | 8081 | Confluent Schema Registry  |
-| `db`                       | 5432 | PostgreSQL                 |
+| `dls-dev-kafka`            | 9092 | Confluent Kafka (PLAINTEXT)  |
+| `dls-dev-schema-registry`  | 8081 | Confluent Schema Registry    |
+| `dls-dev-akhq`             | 8085 | AKHQ UI                      |
+| `dls-dev-db`               | 5432 | PostgreSQL                   |
 
 ## Start the backend
 

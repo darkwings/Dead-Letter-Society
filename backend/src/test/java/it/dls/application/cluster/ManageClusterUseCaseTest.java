@@ -39,8 +39,8 @@ class ManageClusterUseCaseTest {
     @Test
     void registerClusterSavesAndReturns() {
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null,
-            "http://sr:8081", null, null);
+            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null, null,
+            "http://sr:8081", null, null, null);
         var cluster = useCase.registerCluster(cmd);
         assertThat(cluster.getId()).isNotNull();
         assertThat(cluster.getName()).isEqualTo("prod");
@@ -50,8 +50,8 @@ class ManageClusterUseCaseTest {
     @Test
     void registerClusterEncryptsSaslCredentials() {
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.SASL_PLAIN, true, "user", "pass", null,
-            "http://sr:8081", null, null);
+            KafkaSecurityProtocol.SASL_PLAIN, true, "user", "pass", null, null,
+            "http://sr:8081", null, null, null);
         var cluster = useCase.registerCluster(cmd);
         assertThat(cluster.getSecurityConfig().encryptedUsername()).isEqualTo("enc-user");
         assertThat(cluster.getSecurityConfig().encryptedPassword()).isEqualTo("enc-pass");
@@ -60,8 +60,8 @@ class ManageClusterUseCaseTest {
     @Test
     void registerClusterEncodesSrCredentials() {
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null,
-            "http://sr:8081", "sr-user", "sr-pass");
+            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null, null,
+            "http://sr:8081", "sr-user", "sr-pass", null);
         var cluster = useCase.registerCluster(cmd);
         assertThat(cluster.getSchemaRegistry().encryptedUsername()).isEqualTo("enc-sr-user");
         assertThat(cluster.getSchemaRegistry().encryptedPassword()).isEqualTo("enc-sr-pass");
@@ -71,8 +71,8 @@ class ManageClusterUseCaseTest {
     void registerClusterThrowsWhenKafkaUnreachable() {
         when(connectivity.testKafka(any(), any())).thenReturn(ConnectivityResult.fail("timeout"));
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null,
-            "http://sr:8081", null, null);
+            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null, null,
+            "http://sr:8081", null, null, null);
         assertThatThrownBy(() -> useCase.registerCluster(cmd))
             .isInstanceOf(ConnectivityValidationException.class)
             .hasMessageContaining("Kafka");
@@ -82,8 +82,8 @@ class ManageClusterUseCaseTest {
     void registerClusterThrowsWhenSchemaRegistryUnreachable() {
         when(connectivity.testSchemaRegistry(any(), any())).thenReturn(ConnectivityResult.fail("refused"));
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null,
-            "http://sr:8081", null, null);
+            KafkaSecurityProtocol.PLAINTEXT, true, null, null, null, null,
+            "http://sr:8081", null, null, null);
         assertThatThrownBy(() -> useCase.registerCluster(cmd))
             .isInstanceOf(ConnectivityValidationException.class)
             .hasMessageContaining("Schema Registry");
@@ -110,8 +110,8 @@ class ManageClusterUseCaseTest {
     @Test
     void registerCluster_connectivityTestReceivesPlaintextCredentials() {
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.SASL_SCRAM_SHA_256, false, "user", "pass", null,
-            null, null, null);
+            KafkaSecurityProtocol.SASL_SCRAM_SHA_256, false, "user", "pass", null, null,
+            null, null, null, null);
         useCase.registerCluster(cmd);
 
         var captor = ArgumentCaptor.forClass(KafkaSecurityConfig.class);
@@ -123,8 +123,8 @@ class ManageClusterUseCaseTest {
     @Test
     void registerCluster_persistsEncryptedCredentials() {
         var cmd = new RegisterClusterCommand("prod", "broker:9092",
-            KafkaSecurityProtocol.SASL_SCRAM_SHA_256, false, "user", "pass", null,
-            null, null, null);
+            KafkaSecurityProtocol.SASL_SCRAM_SHA_256, false, "user", "pass", null, null,
+            null, null, null, null);
         var cluster = useCase.registerCluster(cmd);
 
         assertThat(cluster.getSecurityConfig().encryptedUsername()).isEqualTo("enc-user");

@@ -44,14 +44,16 @@ public class ManageClusterUseCase {
         SchemaRegistryConfig srConfig = null;
         if (cmd.srUrl() != null && !cmd.srUrl().isBlank()) {
             String srUrl = normaliseSrUrl(cmd.srUrl());
-            var plainSrAuth = new SchemaRegistryAuthConfig(cmd.srUsername(), cmd.srPassword());
+            var plainSrAuth = new SchemaRegistryAuthConfig(cmd.srUsername(), cmd.srPassword(),
+                cmd.srTruststorePem());
             var srResult = connectivity.testSchemaRegistry(srUrl, plainSrAuth);
             if (!srResult.success())
                 throw new ConnectivityValidationException("Schema Registry: " + srResult.errorMessage());
             srConfig = new SchemaRegistryConfig(
                 srUrl,
                 cmd.srUsername() != null ? encryption.encrypt(cmd.srUsername()) : null,
-                cmd.srPassword() != null ? encryption.encrypt(cmd.srPassword()) : null);
+                cmd.srPassword() != null ? encryption.encrypt(cmd.srPassword()) : null,
+                cmd.srTruststorePem() != null ? encryption.encrypt(cmd.srTruststorePem()) : null);
         }
 
         var cluster = KafkaCluster.create(cmd.bootstrapServers(), cmd.name(), encSecurity, srConfig);
@@ -86,32 +88,34 @@ public class ManageClusterUseCase {
     private KafkaSecurityConfig buildPlainSecurityConfig(RegisterClusterCommand cmd) {
         return switch (cmd.securityProtocol()) {
             case PLAINTEXT -> KafkaSecurityConfig.plaintext();
-            case SSL -> KafkaSecurityConfig.ssl(cmd.keystorePem());
+            case SSL -> KafkaSecurityConfig.ssl(cmd.keystorePem(), cmd.truststorePem());
             case SASL_PLAIN -> KafkaSecurityConfig.saslPlain(
-                cmd.username(), cmd.password(), cmd.tlsEnabled());
+                cmd.username(), cmd.password(), cmd.tlsEnabled(), cmd.truststorePem());
             case SASL_SCRAM_SHA_256 -> KafkaSecurityConfig.saslScram256(
-                cmd.username(), cmd.password(), cmd.tlsEnabled());
+                cmd.username(), cmd.password(), cmd.tlsEnabled(), cmd.truststorePem());
             case SASL_SCRAM_SHA_512 -> KafkaSecurityConfig.saslScram512(
-                cmd.username(), cmd.password(), cmd.tlsEnabled());
+                cmd.username(), cmd.password(), cmd.tlsEnabled(), cmd.truststorePem());
         };
     }
 
     private KafkaSecurityConfig buildEncryptedSecurityConfig(RegisterClusterCommand cmd) {
+        String encTruststore = cmd.truststorePem() != null
+            ? encryption.encrypt(cmd.truststorePem()) : null;
         return switch (cmd.securityProtocol()) {
             case PLAINTEXT -> KafkaSecurityConfig.plaintext();
-            case SSL -> KafkaSecurityConfig.ssl(encryption.encrypt(cmd.keystorePem()));
+            case SSL -> KafkaSecurityConfig.ssl(encryption.encrypt(cmd.keystorePem()), encTruststore);
             case SASL_PLAIN -> KafkaSecurityConfig.saslPlain(
                 encryption.encrypt(cmd.username()),
                 encryption.encrypt(cmd.password()),
-                cmd.tlsEnabled());
+                cmd.tlsEnabled(), encTruststore);
             case SASL_SCRAM_SHA_256 -> KafkaSecurityConfig.saslScram256(
                 encryption.encrypt(cmd.username()),
                 encryption.encrypt(cmd.password()),
-                cmd.tlsEnabled());
+                cmd.tlsEnabled(), encTruststore);
             case SASL_SCRAM_SHA_512 -> KafkaSecurityConfig.saslScram512(
                 encryption.encrypt(cmd.username()),
                 encryption.encrypt(cmd.password()),
-                cmd.tlsEnabled());
+                cmd.tlsEnabled(), encTruststore);
         };
     }
 
