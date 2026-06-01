@@ -34,4 +34,25 @@ class UserTest {
         assertThat(user.isLocked()).isFalse();
         assertThat(user.getFailedLoginAttempts()).isEqualTo(0);
     }
+
+    @Test
+    void changePassword_updatesHash() {
+        var user = User.createLocal("u@dls.io", "U", "oldhash");
+        user.changePassword("newhash");
+        assertThat(user.getPasswordHash()).isEqualTo("newhash");
+    }
+
+    @Test
+    void changePassword_rejectsBlankHash() {
+        var user = User.createLocal("u@dls.io", "U", "oldhash");
+        assertThatThrownBy(() -> user.changePassword(""))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void changePassword_rejectsNullHash() {
+        var user = User.createLocal("u@dls.io", "U", "oldhash");
+        assertThatThrownBy(() -> user.changePassword(null))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
 }
