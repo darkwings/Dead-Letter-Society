@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -32,16 +32,12 @@ interface DlqConfigItem {
   userAssignments: UserAssignmentResponse[]
 }
 
-const createSchema = z.object({
-  email: z.string().email('Valid email required'),
-  displayName: z.string().min(2, 'At least 2 characters'),
-  password: z.string().min(8, 'At least 8 characters'),
-  confirmPassword: z.string(),
-}).refine(d => d.password === d.confirmPassword, {
-  message: 'Passwords do not match',
-  path: ['confirmPassword'],
-})
-type CreateFormValues = z.infer<typeof createSchema>
+type CreateFormValues = {
+  email: string
+  displayName: string
+  password: string
+  confirmPassword: string
+}
 
 function useAllDlqConfigs() {
   const { data: clusters = [] } = useQuery({
@@ -314,6 +310,27 @@ export default function UsersPage() {
 
   const { data: setupStatus } = useSetupStatus()
   const oidcEnabled = setupStatus?.oidcEnabled ?? false
+
+  const createSchema = useMemo(() => {
+    if (oidcEnabled) {
+      return z.object({
+        email: z.string().email('Valid email required'),
+        displayName: z.string().min(2, 'At least 2 characters'),
+        password: z.string(),
+        confirmPassword: z.string(),
+      })
+    }
+    return z.object({
+      email: z.string().email('Valid email required'),
+      displayName: z.string().min(2, 'At least 2 characters'),
+      password: z.string().min(8, 'At least 8 characters'),
+      confirmPassword: z.string(),
+    }).refine(d => d.password === d.confirmPassword, {
+      message: 'Passwords do not match',
+      path: ['confirmPassword'],
+    })
+  }, [oidcEnabled])
+
   const [resetTarget, setResetTarget] = useState<UserResponse | null>(null)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateFormValues>({
