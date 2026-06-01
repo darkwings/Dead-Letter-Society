@@ -1,0 +1,197 @@
+# SASL/SCRAM + TLS (SASL_SSL) Kafka + HTTPS Schema Registry + AKHQ — connectivity test stack.
+# Ports intentionally offset from dev and sasl-test stacks to allow all running simultaneously.
+#
+# Kafka credentials (SCRAM-SHA-256, external listener localhost:29092, SASL_SSL):
+#   admin   / admin-secret   — superuser
+#   dls-app / dls-secret     — regular user
+#
+# Schema Registry HTTPS credentials (localhost:28081):
+#   sr-admin  / sr-admin-secret   — role: admin
+#   sr-reader / sr-reader-secret  — role: reader
+#
+# AKHQ UI: http://localhost:28085
+#
+# TLS notes:
+#   - External Kafka listener: SASL_SSL (SCRAM-SHA-256 over TLS)
+#   - Internal Kafka listener: PLAINTEXT (no auth, used only within Docker network)
+#   - Schema Registry: dual listener — HTTP internal (Docker only) + HTTPS external
+#   - AKHQ connects via internal PLAINTEXT/HTTP — no TLS within Docker network
+#   - CA cert for client trust: docker/tls-test/certs/ca.crt
+#   - Keystore password (all): changeit
+#
+# Usage:
+#   ./scripts/tls/gen-certs.sh          # one-time cert generation
+#   docker compose -f docker/docker-compose.tls-test.yml up -d
+#   # wait ~20s for kafka-init to complete
+#
+# Quick smoke tests:
+#
+#   # Kafka SASL_SSL (requires kcat)
+#   kcat -b localhost:29092 \
+#        -X security.protocol=SASL_SSL \
+#        -X sasl.mechanism=SCRAM-SHA-256 \
+#        -X sasl.username=admin -X sasl.password=admin-secret \
+#        -X ssl.ca.location=docker/tls-test/certs/ca.crt \
+#        -L
+#
+#   # Schema Registry HTTPS
+#   curl --cacert docker/tls-test/certs/ca.crt \
+#        -u sr-reader:sr-reader-secret \
+#        https://localhost:28081/subjects
+#
+# Run gated IT tests:
+#   cd backend && ./gradlew test -Dtls.test.enabled=true \
+#     --tests "it.dls.infrastructure.kafka.KafkaConnectivityAdapterIT"
+
+services:
+
+  # ── Kafka (KRaft, two listeners) ─────────────────────────────────────────────
+  #
+  # INTERNAL (PLAINTEXT, port 9092)    — no auth, used by kafka-init, SR, and AKHQ within Docker
+  # EXTERNAL (SASL_SSL, port 29092)    — SCRAM-SHA-256 over TLS, used by DLS backend tests
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: dls-tls-kafka
+    environment:
+      # KRaft
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:39093
+      CLUSTER_ID: TlNTZXN0S2Fma2FDbHVzdA
+
+      # Listeners
+      KAFKA_LISTENERS: CONTROLLER://0.0.0.0:39093,INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:SASL_SSL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      # SASL — EXTERNAL listener only
+      KAFKA_SASL_ENABLED_MECHANISMS: SCRAM-SHA-256
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_server_jaas.conf"
+
+      # TLS — EXTERNAL listener only (files resolved from /etc/kafka/secrets/)
+      KAFKA_SSL_KEYSTORE_FILENAME: broker.keystore.p12
+      KAFKA_SSL_KEYSTORE_TYPE: PKCS12
+      KAFKA_SSL_KEYSTORE_PASSWORD: changeit
+      KAFKA_SSL_KEY_PASSWORD: changeit
+      KAFKA_SSL_TRUSTSTORE_FILENAME: truststore.p12
+      KAFKA_SSL_TRUSTSTORE_TYPE: PKCS12
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: changeit
+      KAFKA_SSL_CLIENT_AUTH: none
+
+      # Single broker defaults
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - ./tls-test/kafka-jaas.conf:/etc/kafka/kafka_server_jaas.conf:ro
+      - ./tls-test/certs:/etc/kafka/secrets:ro
+    ports:
+      - "29092:29092"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  # Creates SCRAM users + topics via the INTERNAL (PLAINTEXT) listener.
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: dls-tls-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+
+        echo "==> Creating SCRAM users..."
+        kafka-configs --bootstrap-server kafka:9092 \
+          --alter \
+          --add-config 'SCRAM-SHA-256=[iterations=8192,password=admin-secret]' \
+          --entity-type users --entity-name admin
+        kafka-configs --bootstrap-server kafka:9092 \
+          --alter \
+          --add-config 'SCRAM-SHA-256=[iterations=8192,password=dls-secret]' \
+          --entity-type users --entity-name dls-app
+
+        echo "==> Creating topics..."
+        kafka-topics --bootstrap-server kafka:9092 \
+          --create --if-not-exists --topic test-dlq --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 \
+          --create --if-not-exists --topic test-dlq2 --partitions 1 --replication-factor 1
+
+        echo "==> Bootstrap complete."
+
+  # ── Schema Registry ───────────────────────────────────────────────────────────
+  #
+  # Dual listener:
+  #   HTTP  port 8081 — internal Docker network only (no TLS, used by AKHQ + kafka-avro-console-producer)
+  #   HTTPS port 8443 → exposed as 28081 on host
+  #
+  # Kafka connection: INTERNAL (PLAINTEXT) — no SASL/TLS needed for SR→Kafka within Docker.
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    container_name: dls-tls-schema-registry
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    ports:
+      - "28081:8443"
+    volumes:
+      - ./tls-test/jaas.conf:/etc/schema-registry/jaas.conf:ro
+      - ./tls-test/users.properties:/etc/schema-registry/users.properties:ro
+      - ./tls-test/certs:/etc/schema-registry/secrets:ro
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      # Dual listener: HTTP internal + HTTPS external
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081,https://0.0.0.0:8443
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: PLAINTEXT
+
+      # HTTP basic auth (applied to both listeners)
+      SCHEMA_REGISTRY_AUTHENTICATION_METHOD: BASIC
+      SCHEMA_REGISTRY_AUTHENTICATION_REALM: SchemaRegistry-Props
+      SCHEMA_REGISTRY_AUTHENTICATION_ROLES: admin,reader
+      SCHEMA_REGISTRY_OPTS: >-
+        -Djava.security.auth.login.config=/etc/schema-registry/jaas.conf
+
+      # TLS — applies to the https:// listener only
+      SCHEMA_REGISTRY_SSL_KEYSTORE_LOCATION: /etc/schema-registry/secrets/sr.keystore.p12
+      SCHEMA_REGISTRY_SSL_KEYSTORE_PASSWORD: changeit
+      SCHEMA_REGISTRY_SSL_KEY_PASSWORD: changeit
+      SCHEMA_REGISTRY_SSL_KEYSTORE_TYPE: PKCS12
+
+  # ── AKHQ ──────────────────────────────────────────────────────────────────────
+  #
+  # Connects to Kafka via INTERNAL (PLAINTEXT) — no SASL/TLS within Docker network.
+  # Connects to Schema Registry via internal HTTP — no TLS within Docker network.
+
+  akhq:
+    image: tchiotludo/akhq:0.25.0
+    container_name: dls-tls-akhq
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      schema-registry:
+        condition: service_started
+    ports:
+      - "28085:8080"
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            dls-tls:
+              properties:
+                bootstrap.servers: "kafka:9092"
+              schema-registry:
+                url: "http://schema-registry:8081"
+                basic-auth-username: "sr-reader"
+                basic-auth-password: "sr-reader-secret"

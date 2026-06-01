@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+# Produces random DLQ messages to the SASL test cluster.
+# Plain JSON if no schema registered; Avro (Confluent wire format) if subject exists.
+#
+# Usage: ./scripts/sasl/seed-dlq.sh [--header] [topic] [count]
+#   --header  — also emit SmallRye dead-letter-* headers (Quarkus framework style)
+#   topic     — default: orders.dlq
+#   count     — default: 20
+#
+# Requires the SASL test stack running:
+#   docker compose -f docker/docker-compose.sasl-test.yml up -d
+#
+# Kafka:           localhost:19092 (SASL_PLAINTEXT, SCRAM-SHA-256)
+# Schema Registry: localhost:18081 (HTTP basic auth)
+
+set -euo pipefail
+
+TOPIC="orders.dlq"
+COUNT=20
+FRAMEWORK_HEADERS=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --header) FRAMEWORK_HEADERS=true; shift ;;
+    -*) echo "Unknown option: $1"; exit 1 ;;
+    *)
+      if [[ "$TOPIC" == "orders.dlq" ]]; then TOPIC="$1"
+      else COUNT="$1"
+      fi
+      shift ;;
+  esac
+done
+
+KAFKA_CONTAINER="dls-sasl-kafka"
+SR_CONTAINER="dls-sasl-schema-registry"
+# INTERNAL (PLAINTEXT) listener — used from within Docker containers (no SASL needed).
+BROKER_INTERNAL="kafka:9092"
+SR_URL="http://localhost:18081"
+SR_USER="sr-reader"
+SR_PASS="sr-reader-secret"
+
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
+
+# ── validate ──────────────────────────────────────────────────────────────────
+if ! [[ "$COUNT" =~ ^[1-9][0-9]*$ ]]; then
+  echo -e "${RED}count must be a positive integer, got: $COUNT${NC}"; exit 1
+fi
+
+if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${KAFKA_CONTAINER}$"; then
+  echo -e "${RED}Container '${KAFKA_CONTAINER}' not running.${NC}"
+  echo "Start the stack:  docker compose -f docker/docker-compose.sasl-test.yml up -d"
+  exit 1
+fi
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+pick()       { local arr=("$@"); echo "${arr[$(( RANDOM % ${#arr[@]} ))]}"; }
+rand_price() { printf '%d.%02d' "$(( 5 + RANDOM % 995 ))" "$(( RANDOM % 100 ))"; }
+
+# ── data pools ────────────────────────────────────────────────────────────────
+EX_CLASSES=(
+  "it.dls.domain.order.InvalidOrderException"
+  "it.dls.domain.payment.PaymentDeclinedException"
+  "it.dls.domain.inventory.InventoryUnavailableException"
+  "it.dls.domain.customer.CustomerNotFoundException"
+  "it.dls.domain.order.PriceValidationException"
+  "it.dls.domain.order.DuplicateOrderException"
+  "it.dls.domain.shipping.ShippingAddressUnresolvableException"
+  "it.dls.domain.order.OrderValidationException"
+)
+EX_MESSAGES=(
+  "Required field shippingAddress is null"
+  "Payment declined: insufficient funds"
+  "SKU not available in requested quantity"
+  "Customer not found in CRM system"
+  "Price mismatch: catalog price differs from order"
+  "Order with this idempotency key already processed"
+  "Shipping address could not be resolved to a postal zone"
+  "Order total exceeds maximum allowed per transaction"
+)
+SKUS=("LAPTOP-PRO-15" "MOUSE-WL-001" "KB-MECH-TKL" "MONITOR-4K-27" "HEADSET-USB-C"
+      "WEBCAM-HD-1080" "DOCK-TB4" "SSD-1TB-NVME" "CHAIR-ERG-01" "DESK-ADJ-120")
+CURRENCIES=("EUR" "USD" "GBP")
+CUSTOMERS=("cust-1001" "cust-2045" "cust-3312" "cust-4879"
+           "cust-5001" "cust-6234" "cust-7720" "cust-8843")
+ORIG_TOPICS=("orders" "orders-v2" "orders-eu" "orders-us")
+
+# ── ensure topic exists ───────────────────────────────────────────────────────
+echo -e "${YELLOW}Ensuring topic '${TOPIC}' exists (3 partitions)...${NC}"
+# Uses INTERNAL (PLAINTEXT) listener — no SASL needed from within the container.
+docker exec "$KAFKA_CONTAINER" kafka-topics \
+  --bootstrap-server localhost:9092 \
+  --create --if-not-exists \
+  --topic "$TOPIC" --partitions 3 --replication-factor 1 2>/dev/null \
+  && echo "  Topic created." || echo "  Topic already exists."
+
+# ── detect schema ─────────────────────────────────────────────────────────────
+SR_SUBJECT="${TOPIC}-value"
+USE_AVRO=false
+SCHEMA_ID=""
+
+if curl -sf -u "${SR_USER}:${SR_PASS}" "${SR_URL}/subjects/${SR_SUBJECT}/versions/latest" > /dev/null 2>&1; then
+  USE_AVRO=true
+  SCHEMA_ID=$(curl -sf -u "${SR_USER}:${SR_PASS}" "${SR_URL}/subjects/${SR_SUBJECT}/versions/latest" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+  echo -e "${YELLOW}Schema found for '${SR_SUBJECT}' (id=${SCHEMA_ID}) — producing Avro.${NC}"
+else
+  echo -e "${YELLOW}No schema for '${SR_SUBJECT}' — producing plain JSON.${NC}"
+  echo "  Run ./scripts/sasl/register-schema.sh to enable Avro encoding."
+fi
+
+if [[ "$USE_AVRO" == "true" && "$FRAMEWORK_HEADERS" == "true" ]]; then
+  echo -e "${YELLOW}Warning: --header ignored in Avro mode (SchemaMessageReader does not support custom headers).${NC}"
+fi
+
+# ── build messages ────────────────────────────────────────────────────────────
+echo -e "${YELLOW}Building ${COUNT} messages...${NC}"
+TMPFILE=$(mktemp)
+TMPFILE_AVRO=$(mktemp)
+trap "rm -f $TMPFILE $TMPFILE_AVRO" EXIT
+
+for i in $(seq 1 "$COUNT"); do
+  ORDER_ID="ORD-$(( 100000 + RANDOM % 900000 ))"
+  CUSTOMER=$(pick "${CUSTOMERS[@]}")
+  SKU=$(pick "${SKUS[@]}")
+  QTY=$(( 1 + RANDOM % 10 ))
+  UNIT_PRICE=$(rand_price)
+  TOTAL=$(awk "BEGIN { printf \"%.2f\", $QTY * $UNIT_PRICE }")
+  CURRENCY=$(pick "${CURRENCIES[@]}")
+  EX_CLASS=$(pick "${EX_CLASSES[@]}")
+  EX_MSG=$(pick "${EX_MESSAGES[@]}")
+  ORIG_TOPIC=$(pick "${ORIG_TOPICS[@]}")
+  ORIG_PARTITION=$(( RANDOM % 3 ))
+  ORIG_OFFSET=$(( RANDOM % 100000 ))
+  RETRY_COUNT=$(( RANDOM % 4 ))
+  CORR_ID="corr-$(LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom 2>/dev/null | head -c 16 \
+             || echo "${RANDOM}${RANDOM}${RANDOM}${RANDOM}")"
+  TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  PAYLOAD="{\"orderId\":\"${ORDER_ID}\",\"customerId\":\"${CUSTOMER}\",\
+\"item\":{\"sku\":\"${SKU}\",\"qty\":${QTY},\"unitPrice\":${UNIT_PRICE},\"currency\":\"${CURRENCY}\"},\
+\"total\":${TOTAL},\"timestamp\":\"${TIMESTAMP}\",\"correlationId\":\"${CORR_ID}\"}"
+
+  HEADERS="x-original-topic:${ORIG_TOPIC}|x-exception-class:${EX_CLASS}\
+|x-exception-message:${EX_MSG}|x-original-partition:${ORIG_PARTITION}\
+|x-original-offset:${ORIG_OFFSET}|x-retry-count:${RETRY_COUNT}"
+
+  if [[ "$FRAMEWORK_HEADERS" == "true" ]]; then
+    HEADERS="${HEADERS}\
+|dead-letter-reason:${EX_MSG}\
+|dead-letter-cause:${EX_CLASS}\
+|dead-letter-topic:${ORIG_TOPIC}\
+|dead-letter-partition:${ORIG_PARTITION}\
+|dead-letter-offset:${ORIG_OFFSET}"
+  fi
+
+  HEADERS_CSV=$(echo "$HEADERS" | tr '|' ',')
+  printf '%s\t%s\t%s\n' "$HEADERS_CSV" "$ORDER_ID" "$PAYLOAD" >> "$TMPFILE"
+  printf '%s\t%s\n' "$ORDER_ID" "$PAYLOAD" >> "$TMPFILE_AVRO"
+
+  echo -e "  ${GREEN}[${i}/${COUNT}]${NC} ${ORDER_ID}  ${CUSTOMER}  ${QTY}x ${SKU}  ${EX_CLASS##*.}"
+done
+
+# ── produce ───────────────────────────────────────────────────────────────────
+echo
+echo -e "${YELLOW}Producing to '${TOPIC}'...${NC}"
+
+if [[ "$USE_AVRO" == "true" ]]; then
+  # kafka-avro-console-producer connects to Kafka via the INTERNAL (PLAINTEXT) listener
+  # from within the SR container — no SASL config needed.
+  docker exec -i "$SR_CONTAINER" kafka-avro-console-producer \
+    --bootstrap-server "$BROKER_INTERNAL" \
+    --topic "$TOPIC" \
+    --property schema.registry.url=http://localhost:8081 \
+    --property schema.registry.basic.auth.credentials.source=USER_INFO \
+    --property "schema.registry.basic.auth.user.info=${SR_USER}:${SR_PASS}" \
+    --property value.schema.id="$SCHEMA_ID" \
+    --property key.serializer=org.apache.kafka.common.serialization.StringSerializer \
+    --property parse.key=true \
+    --property key.separator=$'\t' \
+    < "$TMPFILE_AVRO"
+else
+  # kafka-console-producer uses INTERNAL (PLAINTEXT) listener — no SASL needed.
+  docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
+    --bootstrap-server localhost:9092 \
+    --topic "$TOPIC" \
+    --property parse.key=true \
+    --property key.separator=$'\t' \
+    --property parse.headers=true \
+    --property "headers.key.separator=:" \
+    < "$TMPFILE"
+fi
+
+echo -e "${GREEN}Done.${NC}  produced=${COUNT}  topic=${TOPIC}"
