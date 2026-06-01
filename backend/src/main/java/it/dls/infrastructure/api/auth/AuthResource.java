@@ -100,6 +100,7 @@ public class AuthResource {
     @PATCH
     @Path("/users/me/password")
     @RolesAllowed({"ADMIN", "USER"})
+    @Transactional
     public Response changeMyPassword(ChangeMyPasswordRequest req) {
         if (req == null || req.currentPassword() == null || req.currentPassword().isBlank()
                 || req.newPassword() == null || req.newPassword().isBlank()) {
@@ -119,6 +120,7 @@ public class AuthResource {
     @PATCH
     @Path("/users/{id}/password")
     @RolesAllowed("ADMIN")
+    @Transactional
     public Response resetUserPassword(@PathParam("id") UUID targetId, ResetUserPasswordRequest req) {
         if (req == null || req.newPassword() == null || req.newPassword().isBlank()) {
             return ProblemDetail.badRequest("newPassword is required").toResponse();
