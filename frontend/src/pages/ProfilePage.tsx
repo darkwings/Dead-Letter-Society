@@ -71,7 +71,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {!oidcEnabled && (
+      {status !== undefined && !oidcEnabled && (
         <div className="card" style={{ padding: 24 }}>
           <h2 className="t-h3" style={{ marginBottom: 16 }}>Change Password</h2>
           <form onSubmit={handleSubmit((d) => changeMutation.mutate(d))} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

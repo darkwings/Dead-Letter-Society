@@ -114,6 +114,8 @@ public class AuthResource {
             return ProblemDetail.unauthorized(e.getMessage()).toResponse();
         } catch (IllegalArgumentException e) {
             return ProblemDetail.badRequest(e.getMessage()).toResponse();
+        } catch (IllegalStateException e) {
+            return ProblemDetail.unprocessable(e.getMessage()).toResponse();
         }
     }
 
@@ -124,6 +126,9 @@ public class AuthResource {
     public Response resetUserPassword(@PathParam("id") UUID targetId, ResetUserPasswordRequest req) {
         if (req == null || req.newPassword() == null || req.newPassword().isBlank()) {
             return ProblemDetail.badRequest("newPassword is required").toResponse();
+        }
+        if (req.newPassword().length() < 8) {
+            return ProblemDetail.badRequest("newPassword must be at least 8 characters").toResponse();
         }
         try {
             changePassword.adminReset(targetId, req.newPassword());
