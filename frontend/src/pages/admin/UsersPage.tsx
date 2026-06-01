@@ -5,12 +5,14 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
+import { useSetupStatus } from '@/hooks/useSetupStatus'
 
 interface UserResponse {
   id: string
   email: string
   displayName: string
   role: string
+  authProvider: 'LOCAL' | 'OIDC'
 }
 
 interface ClusterItem {
@@ -34,6 +36,10 @@ const createSchema = z.object({
   email: z.string().email('Valid email required'),
   displayName: z.string().min(2, 'At least 2 characters'),
   password: z.string().min(8, 'At least 8 characters'),
+  confirmPassword: z.string(),
+}).refine(d => d.password === d.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
 })
 type CreateFormValues = z.infer<typeof createSchema>
 
@@ -231,6 +237,71 @@ function AssignModal({ user, onClose }: AssignModalProps) {
   )
 }
 
+interface ResetPasswordModalProps {
+  user: UserResponse
+  onClose: () => void
+}
+
+const resetSchema = z.object({
+  newPassword: z.string().min(8, 'At least 8 characters'),
+  confirmNewPassword: z.string(),
+}).refine(d => d.newPassword === d.confirmNewPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmNewPassword'],
+})
+type ResetFormValues = z.infer<typeof resetSchema>
+
+function ResetPasswordModal({ user, onClose }: ResetPasswordModalProps) {
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<ResetFormValues>({
+    resolver: zodResolver(resetSchema),
+    defaultValues: { newPassword: '', confirmNewPassword: '' },
+  })
+
+  const resetMutation = useMutation({
+    mutationFn: ({ newPassword }: ResetFormValues) =>
+      apiFetch(`/api/auth/users/${user.id}/password`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newPassword }),
+      }),
+    onSuccess: () => {
+      toast.success(`Password reset for ${user.displayName}`)
+      reset()
+      onClose()
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="card" style={{ width: '100%', maxWidth: 400, padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 className="t-h3">Reset Password</h2>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+        </div>
+        <p className="t-small" style={{ marginBottom: 16 }}>{user.displayName} · {user.email}</p>
+        <form onSubmit={handleSubmit((d) => resetMutation.mutate(d))} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label htmlFor="resetNewPassword" style={{ fontSize: 12, fontWeight: 500 }}>New Password</label>
+            <input id="resetNewPassword" type="password" className={`input${errors.newPassword ? ' error' : ''}`} {...register('newPassword')} />
+            {errors.newPassword && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.newPassword.message}</span>}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label htmlFor="resetConfirmNewPassword" style={{ fontSize: 12, fontWeight: 500 }}>Confirm New Password</label>
+            <input id="resetConfirmNewPassword" type="password" className={`input${errors.confirmNewPassword ? ' error' : ''}`} {...register('confirmNewPassword')} />
+            {errors.confirmNewPassword && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.confirmNewPassword.message}</span>}
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={resetMutation.isPending} style={{ marginTop: 4 }}>
+            {resetMutation.isPending ? 'Resetting…' : 'Reset'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function UsersPage() {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
@@ -241,14 +312,21 @@ export default function UsersPage() {
     queryFn: () => apiFetch<UserResponse[]>('/api/auth/users'),
   })
 
+  const { data: setupStatus } = useSetupStatus()
+  const oidcEnabled = setupStatus?.oidcEnabled ?? false
+  const [resetTarget, setResetTarget] = useState<UserResponse | null>(null)
+
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateFormValues>({
     resolver: zodResolver(createSchema),
-    defaultValues: { email: '', displayName: '', password: '' },
+    defaultValues: { email: '', displayName: '', password: '', confirmPassword: '' },
   })
 
   const createMutation = useMutation({
     mutationFn: (data: CreateFormValues) =>
-      apiFetch<UserResponse>('/api/auth/users', { method: 'POST', body: JSON.stringify(data) }),
+      apiFetch<UserResponse>('/api/auth/users', {
+        method: 'POST',
+        body: JSON.stringify({ email: data.email, displayName: data.displayName, password: data.password }),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       toast.success('User created')
@@ -288,11 +366,20 @@ export default function UsersPage() {
               <input id="newDisplayName" className={`input${errors.displayName ? ' error' : ''}`} {...register('displayName')} />
               {errors.displayName && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.displayName.message}</span>}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label htmlFor="newPassword" style={{ fontSize: 12, fontWeight: 500 }}>Password</label>
-              <input id="newPassword" type="password" className={`input${errors.password ? ' error' : ''}`} {...register('password')} />
-              {errors.password && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.password.message}</span>}
-            </div>
+            {!oidcEnabled && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label htmlFor="createPassword" style={{ fontSize: 12, fontWeight: 500 }}>Password</label>
+                <input id="createPassword" type="password" className={`input${errors.password ? ' error' : ''}`} {...register('password')} />
+                {errors.password && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.password.message}</span>}
+              </div>
+            )}
+            {!oidcEnabled && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label htmlFor="createConfirmPassword" style={{ fontSize: 12, fontWeight: 500 }}>Confirm Password</label>
+                <input id="createConfirmPassword" type="password" className={`input${errors.confirmPassword ? ' error' : ''}`} {...register('confirmPassword')} />
+                {errors.confirmPassword && <span style={{ fontSize: 11, color: 'hsl(var(--destructive))' }}>{errors.confirmPassword.message}</span>}
+              </div>
+            )}
             <button type="submit" className="btn btn-primary" disabled={createMutation.isPending} style={{ marginTop: 4 }}>
               {createMutation.isPending ? 'Creating…' : 'Create User'}
             </button>
@@ -326,6 +413,14 @@ export default function UsersPage() {
                     </span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
+                    {!oidcEnabled && u.authProvider === 'LOCAL' && (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setResetTarget(u)}
+                      >
+                        Reset Password
+                      </button>
+                    )}
                     <button
                       className="btn btn-ghost btn-sm"
                       onClick={() => setManagingUser(u)}
@@ -342,6 +437,9 @@ export default function UsersPage() {
 
       {managingUser && (
         <AssignModal user={managingUser} onClose={() => setManagingUser(null)} />
+      )}
+      {resetTarget && (
+        <ResetPasswordModal user={resetTarget} onClose={() => setResetTarget(null)} />
       )}
     </div>
   )

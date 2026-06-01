@@ -26,8 +26,9 @@ import { apiFetch } from '@/lib/api'
 const mockApiFetch = vi.mocked(apiFetch)
 
 const USERS = [
-  { id: 'u1', email: 'alice@co.com', displayName: 'Alice', role: 'ADMIN' },
-  { id: 'u2', email: 'bob@co.com',   displayName: 'Bob',   role: 'USER'  },
+  { id: 'u1', email: 'alice@co.com', displayName: 'Alice', role: 'ADMIN', authProvider: 'LOCAL' },
+  { id: 'u2', email: 'bob@co.com',   displayName: 'Bob',   role: 'USER',  authProvider: 'LOCAL' },
+  { id: 'u3', email: 'oidc@co.com',  displayName: 'Oidc',  role: 'USER',  authProvider: 'OIDC'  },
 ]
 
 const CLUSTERS = [{ id: 'cl1', name: 'Prod' }]
@@ -56,6 +57,7 @@ beforeEach(() => {
     if (path === '/api/auth/users')        return Promise.resolve(USERS)
     if (path === '/api/clusters')          return Promise.resolve(CLUSTERS)
     if (path === '/api/clusters/cl1/dlq-configs') return Promise.resolve(DLQ_CONFIGS)
+    if (path === '/api/setup/status')      return Promise.resolve({ setupRequired: false, oidcEnabled: false })
     return Promise.resolve(undefined)
   })
 })
@@ -70,7 +72,7 @@ describe('UsersPage', () => {
   it('shows Manage Access button per user', async () => {
     render(<UsersPage />, { wrapper: wrapper() })
     await screen.findByText('Alice')
-    expect(screen.getAllByRole('button', { name: /manage access/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /manage access/i })).toHaveLength(3)
   })
 
   it('opens assign modal on Manage Access click', async () => {
@@ -109,6 +111,7 @@ describe('UsersPage', () => {
       if (path === '/api/auth/users')        return Promise.resolve(USERS)
       if (path === '/api/clusters')          return Promise.resolve(CLUSTERS)
       if (path === '/api/clusters/cl1/dlq-configs') return Promise.resolve(DLQ_CONFIGS)
+      if (path === '/api/setup/status')      return Promise.resolve({ setupRequired: false, oidcEnabled: false })
       if (path === '/api/dlq-configs/cfg2/users') return Promise.resolve(undefined)
       return Promise.resolve(undefined)
     })
@@ -140,6 +143,7 @@ describe('UsersPage', () => {
       if (path === '/api/auth/users')        return Promise.resolve(USERS)
       if (path === '/api/clusters')          return Promise.resolve(CLUSTERS)
       if (path === '/api/clusters/cl1/dlq-configs') return Promise.resolve(DLQ_CONFIGS)
+      if (path === '/api/setup/status')      return Promise.resolve({ setupRequired: false, oidcEnabled: false })
       if (path === '/api/dlq-configs/cfg1/users/u2' && init?.method === 'DELETE')
         return Promise.resolve(undefined)
       return Promise.resolve(undefined)
@@ -180,9 +184,10 @@ describe('UsersPage', () => {
     mockApiFetch.mockImplementation((path: string, init?: RequestInit) => {
       if (path === '/api/auth/users' && !init?.method) return Promise.resolve(USERS)
       if (path === '/api/auth/users' && init?.method === 'POST')
-        return Promise.resolve({ id: 'u3', email: 'carol@co.com', displayName: 'Carol', role: 'USER' })
+        return Promise.resolve({ id: 'u4', email: 'carol@co.com', displayName: 'Carol', role: 'USER', authProvider: 'LOCAL' })
       if (path === '/api/clusters')          return Promise.resolve(CLUSTERS)
       if (path === '/api/clusters/cl1/dlq-configs') return Promise.resolve(DLQ_CONFIGS)
+      if (path === '/api/setup/status')      return Promise.resolve({ setupRequired: false, oidcEnabled: false })
       return Promise.resolve(undefined)
     })
     const user = userEvent.setup()
@@ -192,13 +197,81 @@ describe('UsersPage', () => {
     await user.click(screen.getByRole('button', { name: /add user/i }))
     await user.type(screen.getByLabelText(/email/i), 'carol@co.com')
     await user.type(screen.getByLabelText(/display name/i), 'Carol')
-    await user.type(screen.getByLabelText(/password/i), 'secret123')
+    await user.type(screen.getByLabelText(/^password$/i), 'secret123')
+    await user.type(screen.getByLabelText(/confirm password/i), 'secret123')
     await user.click(screen.getByRole('button', { name: /create user/i }))
 
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(
         '/api/auth/users',
         expect.objectContaining({ method: 'POST' })
+      )
+    })
+  })
+
+  it('confirm password mismatch shows error and does not call API', async () => {
+    const user = userEvent.setup()
+    render(<UsersPage />, { wrapper: wrapper() })
+    await screen.findByText('Alice')
+
+    await user.click(screen.getByRole('button', { name: /add user/i }))
+    await user.type(screen.getByLabelText(/email/i), 'new@co.com')
+    await user.type(screen.getByLabelText(/display name/i), 'New User')
+    await user.type(screen.getByLabelText(/^password$/i), 'secret123')
+    await user.type(screen.getByLabelText(/confirm password/i), 'different')
+    await user.click(screen.getByRole('button', { name: /create user/i }))
+
+    expect(await screen.findByText(/passwords do not match/i)).toBeInTheDocument()
+    expect(mockApiFetch).not.toHaveBeenCalledWith('/api/auth/users', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('shows Reset Password button only for LOCAL users when oidcEnabled=false', async () => {
+    render(<UsersPage />, { wrapper: wrapper() })
+    await screen.findByText('Alice')
+
+    const resetButtons = screen.getAllByRole('button', { name: /reset password/i })
+    // 2 LOCAL users, 1 OIDC user → 2 reset buttons
+    expect(resetButtons).toHaveLength(2)
+  })
+
+  it('hides Reset Password button when oidcEnabled=true', async () => {
+    mockApiFetch.mockImplementation((path: string) => {
+      if (path === '/api/auth/users')   return Promise.resolve(USERS)
+      if (path === '/api/clusters')     return Promise.resolve(CLUSTERS)
+      if (path === '/api/clusters/cl1/dlq-configs') return Promise.resolve(DLQ_CONFIGS)
+      if (path === '/api/setup/status') return Promise.resolve({ setupRequired: false, oidcEnabled: true })
+      return Promise.resolve(undefined)
+    })
+    render(<UsersPage />, { wrapper: wrapper() })
+    await screen.findByText('Alice')
+
+    expect(screen.queryByRole('button', { name: /reset password/i })).not.toBeInTheDocument()
+  })
+
+  it('reset password modal submits PATCH with newPassword', async () => {
+    mockApiFetch.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/auth/users')   return Promise.resolve(USERS)
+      if (path === '/api/clusters')     return Promise.resolve(CLUSTERS)
+      if (path === '/api/clusters/cl1/dlq-configs') return Promise.resolve(DLQ_CONFIGS)
+      if (path === '/api/setup/status') return Promise.resolve({ setupRequired: false, oidcEnabled: false })
+      if (path === '/api/auth/users/u1/password' && init?.method === 'PATCH') return Promise.resolve(undefined)
+      return Promise.resolve(undefined)
+    })
+    const user = userEvent.setup()
+    render(<UsersPage />, { wrapper: wrapper() })
+    await screen.findByText('Alice')
+
+    await user.click(screen.getAllByRole('button', { name: /reset password/i })[0])
+    expect(await screen.findByRole('heading', { name: /reset password/i })).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText(/^new password$/i), 'NewPass123!')
+    await user.type(screen.getByLabelText(/confirm new password/i), 'NewPass123!')
+    await user.click(screen.getByRole('button', { name: /^reset$/i }))
+
+    await waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        '/api/auth/users/u1/password',
+        expect.objectContaining({ method: 'PATCH' })
       )
     })
   })
