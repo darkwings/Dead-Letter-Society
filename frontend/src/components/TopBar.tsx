@@ -42,7 +42,12 @@ export default function TopBar() {
       <div style={{ flex: 1 }} />
       {user && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
-          <span>{user.displayName}</span>
+          <Link
+            to="/profile"
+            style={{ textDecoration: 'none', color: 'inherit', fontSize: 12 }}
+          >
+            {user.displayName}
+          </Link>
           <span className={`badge role-${user.globalRole.toLowerCase()}`} style={{ textTransform: 'none', letterSpacing: 0, fontSize: 10.5 }}>
             {user.globalRole}
           </span>

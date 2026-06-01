@@ -14,6 +14,7 @@ import MessageDetailPage from '@/pages/messages/MessageDetailPage'
 import AllMessagesPage from '@/pages/messages/AllMessagesPage'
 import DashboardPage from '@/pages/dashboard/DashboardPage'
 import UsersPage from '@/pages/admin/UsersPage'
+import ProfilePage from '@/pages/ProfilePage'
 import SettingsLayout from '@/pages/settings/SettingsLayout'
 import SettingsGeneralPage from '@/pages/settings/SettingsGeneralPage'
 import RouteGuard from '@/components/RouteGuard'
@@ -80,6 +81,7 @@ function AppWithTheme() {
               <Route path="users" element={<Navigate to="/admin/users" replace />} />
             </Route>
             {/* accessible to all authenticated users */}
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/dlq-configs/:configId/messages" element={<MessageListPage />} />
             <Route path="/messages" element={<AllMessagesPage />} />
             <Route path="/messages/:messageId" element={<MessageDetailPage />} />
