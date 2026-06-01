@@ -1,6 +1,7 @@
 package it.dls.infrastructure.api.auth;
 
 import io.smallrye.jwt.build.Jwt;
+import it.dls.application.identity.ChangePasswordUseCase;
 import it.dls.application.identity.LoginFailure;
 import it.dls.application.identity.LoginUseCase;
 import it.dls.application.identity.RegisterAdminUseCase;
@@ -30,6 +31,7 @@ public class AuthResource {
     @Inject RegisterAdminUseCase registerAdmin;
     @Inject UserRepository userRepository;
     @Inject JsonWebToken jwt;
+    @Inject ChangePasswordUseCase changePassword;
 
     @POST
     @Path("/login")
@@ -92,6 +94,42 @@ public class AuthResource {
             return Response.status(Response.Status.CREATED).entity(UserResponse.from(user)).build();
         } catch (IllegalStateException e) {
             return ProblemDetail.conflict(e.getMessage()).toResponse();
+        }
+    }
+
+    @PATCH
+    @Path("/users/me/password")
+    @RolesAllowed({"ADMIN", "USER"})
+    public Response changeMyPassword(ChangeMyPasswordRequest req) {
+        if (req == null || req.currentPassword() == null || req.currentPassword().isBlank()
+                || req.newPassword() == null || req.newPassword().isBlank()) {
+            return ProblemDetail.badRequest("currentPassword and newPassword are required").toResponse();
+        }
+        UUID userId = UUID.fromString(jwt.getSubject());
+        try {
+            changePassword.changeSelf(userId, req.currentPassword(), req.newPassword());
+            return Response.noContent().build();
+        } catch (SecurityException e) {
+            return ProblemDetail.unauthorized(e.getMessage()).toResponse();
+        } catch (IllegalArgumentException e) {
+            return ProblemDetail.badRequest(e.getMessage()).toResponse();
+        }
+    }
+
+    @PATCH
+    @Path("/users/{id}/password")
+    @RolesAllowed("ADMIN")
+    public Response resetUserPassword(@PathParam("id") UUID targetId, ResetUserPasswordRequest req) {
+        if (req == null || req.newPassword() == null || req.newPassword().isBlank()) {
+            return ProblemDetail.badRequest("newPassword is required").toResponse();
+        }
+        try {
+            changePassword.adminReset(targetId, req.newPassword());
+            return Response.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ProblemDetail.notFound(e.getMessage()).toResponse();
+        } catch (IllegalStateException e) {
+            return ProblemDetail.unprocessable(e.getMessage()).toResponse();
         }
     }
 }
