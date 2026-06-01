@@ -1,5 +1,6 @@
 package it.dls.infrastructure.api.auth;
 
+import it.dls.application.identity.ChangePasswordUseCase;
 import it.dls.application.identity.LoginUseCase;
 import it.dls.application.identity.OidcLoginUseCase;
 import it.dls.application.identity.PasswordHashPort;
@@ -41,5 +42,11 @@ public class IdentityUseCaseProducer {
     @ApplicationScoped
     public OidcLoginUseCase oidcLoginUseCase() {
         return new OidcLoginUseCase(userRepository, adminClaimName, adminClaimValue);
+    }
+
+    @Produces
+    @ApplicationScoped
+    public ChangePasswordUseCase changePasswordUseCase() {
+        return new ChangePasswordUseCase(userRepository, passwordHashPort);
     }
 }
