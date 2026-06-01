@@ -130,6 +130,7 @@ class AuthResourceIT {
             .when().post("/api/auth/login")
             .then()
             .statusCode(200)
+            .body("token", notNullValue())
             .extract().path("token");
     }
 
