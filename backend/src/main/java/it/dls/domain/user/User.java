@@ -71,6 +71,11 @@ public class User {
         this.failedLoginAttempts = 0;
     }
 
+    public void changePassword(String newHash) {
+        if (newHash == null || newHash.isBlank()) throw new IllegalArgumentException("newHash must not be blank");
+        this.passwordHash = newHash;
+    }
+
     public boolean isLocked() { return locked; }
     public UUID getId() { return id; }
     public String getEmail() { return email; }

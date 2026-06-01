@@ -53,7 +53,10 @@ public class InspectMessagesUseCase {
                                    UUID requestingUserId, boolean isAdmin) {
         var msg = messageRepo.findById(messageId)
             .orElseThrow(() -> new IllegalArgumentException("Message not found: " + messageId));
-        if (!isAdmin) assertOperatorAccess(msg.getDlqConfigId(), requestingUserId);
+        if (!isAdmin) {
+            if (newStatus == MessageStatus.UNDER_REVIEW) assertReadAccess(msg.getDlqConfigId(), requestingUserId);
+            else assertOperatorAccess(msg.getDlqConfigId(), requestingUserId);
+        }
         msg.transitionTo(newStatus);
         messageRepo.save(msg);
         notifier.emitMessageStatusChanged(messageId, msg.getDlqConfigId(), newStatus.name());
@@ -84,7 +87,7 @@ public class InspectMessagesUseCase {
     @Transactional
     public BulkUnderReviewResult bulkMarkUnderReview(UUID dlqConfigId, List<UUID> messageIds,
                                                       UUID requestingUserId, boolean isAdmin) {
-        if (!isAdmin) assertOperatorAccess(dlqConfigId, requestingUserId);
+        if (!isAdmin) assertReadAccess(dlqConfigId, requestingUserId);
         int succeeded = 0, failed = 0;
         for (UUID msgId : messageIds) {
             var msgOpt = messageRepo.findById(msgId);
