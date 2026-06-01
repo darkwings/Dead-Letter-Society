@@ -13,6 +13,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @Path("/api/setup")
 @Produces(MediaType.APPLICATION_JSON)
@@ -26,10 +27,13 @@ public class SetupResource {
     @Inject
     UserRepository userRepository;
 
+    @ConfigProperty(name = "quarkus.oidc.enabled", defaultValue = "false")
+    boolean oidcEnabled;
+
     @GET
     @Path("/status")
     public SetupStatusResponse status() {
-        return new SetupStatusResponse(!userRepository.existsAny());
+        return new SetupStatusResponse(!userRepository.existsAny(), oidcEnabled);
     }
 
     @POST
