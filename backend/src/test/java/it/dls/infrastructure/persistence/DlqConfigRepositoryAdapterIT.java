@@ -105,6 +105,44 @@ class DlqConfigRepositoryAdapterIT {
 
     @Test
     @TestTransaction
+    void resaveWithUnchangedAssignments_doesNotThrow() {
+        var cluster = savedCluster();
+        var user = savedUser();
+        var config = DlqConfig.create(cluster.getId(), "resave-dlq", "Resave DLQ",
+            FetchConfig.onDemand(500), RetentionPolicy.maxDays(30), null);
+        config.assignUser(user.getId(), DlqRole.OPERATOR);
+        repo.save(config);
+
+        // Simulate fetchScheduled: reload domain object, then save again (offsets only changed)
+        var reloaded = repo.findById(config.getId()).get();
+        assertThatCode(() -> repo.save(reloaded)).doesNotThrowAnyException();
+
+        var found = repo.findById(config.getId()).get();
+        assertThat(found.getUserAssignments()).hasSize(1);
+        assertThat(found.getUserAssignments().get(0).userId()).isEqualTo(user.getId());
+        assertThat(found.getUserAssignments().get(0).role()).isEqualTo(DlqRole.OPERATOR);
+    }
+
+    @Test
+    @TestTransaction
+    void removeUserAssignment_removesFromDb() {
+        var cluster = savedCluster();
+        var user = savedUser();
+        var config = DlqConfig.create(cluster.getId(), "remove-dlq", "Remove DLQ",
+            FetchConfig.onDemand(500), RetentionPolicy.maxDays(30), null);
+        config.assignUser(user.getId(), DlqRole.OPERATOR);
+        repo.save(config);
+
+        var reloaded = repo.findById(config.getId()).get();
+        reloaded.revokeUser(user.getId());
+        repo.save(reloaded);
+
+        var found = repo.findById(config.getId()).get();
+        assertThat(found.getUserAssignments()).isEmpty();
+    }
+
+    @Test
+    @TestTransaction
     void updateUserAssignmentPersists() {
         var cluster = savedCluster();
         var user = savedUser();

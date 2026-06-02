@@ -36,14 +36,24 @@ public class DlqConfigRepositoryAdapter implements DlqConfigRepository {
     }
 
     private void syncAssignments(DlqConfigEntity entity, DlqConfig config) {
-        entity.assignments.clear();
+        var existingByUserId = entity.assignments.stream()
+            .collect(Collectors.toMap(ae -> ae.userId, ae -> ae));
+        var incomingUserIds = config.getUserAssignments().stream()
+            .map(UserAssignment::userId)
+            .collect(Collectors.toSet());
+
         for (UserAssignment a : config.getUserAssignments()) {
-            var ae = new DlqUserAssignmentEntity();
-            ae.dlqConfig = entity;
-            ae.userId = a.userId();
-            ae.role = a.role();
-            entity.assignments.add(ae);
+            if (existingByUserId.containsKey(a.userId())) {
+                existingByUserId.get(a.userId()).role = a.role();
+            } else {
+                var ae = new DlqUserAssignmentEntity();
+                ae.dlqConfig = entity;
+                ae.userId = a.userId();
+                ae.role = a.role();
+                entity.assignments.add(ae);
+            }
         }
+        entity.assignments.removeIf(ae -> !incomingUserIds.contains(ae.userId));
     }
 
     private void syncPartitionOffsets(DlqConfigEntity entity, DlqConfig config) {

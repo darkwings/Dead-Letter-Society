@@ -23,6 +23,12 @@ public class MessageRepositoryAdapter implements MessageRepository {
     public void save(DlqMessage message) {
         DlqMessageEntity existing = DlqMessageEntity.findById(message.getId());
         if (existing == null) {
+            long count = DlqMessageEntity.count(
+                "dlqConfigId = ?1 AND partition = ?2 AND kafkaOffset = ?3",
+                message.getDlqConfigId(), message.getPartition(), message.getKafkaOffset());
+            if (count > 0) {
+                return;
+            }
             DlqMessageEntity.fromDomain(message).persist();
         } else {
             existing.status = message.getStatus();
