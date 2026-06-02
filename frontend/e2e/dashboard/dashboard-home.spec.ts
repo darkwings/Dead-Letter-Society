@@ -17,9 +17,9 @@ test('admin navigating to / is redirected to /dashboard', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
 })
 
-// DASH-002: non-admin / → /clusters
-test('non-admin navigating to / is redirected to /clusters', async ({ page }) => {
+// DASH-002: non-admin / → /messages
+test('non-admin navigating to / is redirected to /messages', async ({ page }) => {
   await loginAsOperator(page)
   await page.goto('/')
-  await expect(page).toHaveURL(/\/clusters/)
+  await expect(page).toHaveURL(/\/messages/)
 })

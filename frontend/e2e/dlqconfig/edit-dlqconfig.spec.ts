@@ -27,7 +27,7 @@ test.beforeEach(async ({ page }) => {
 // DLQCFG-008: topic name is shown as read-only
 test('topic name field is read-only and shows immutability hint', async ({ page }) => {
   await page.goto(`/clusters/${CLUSTER_ID}/dlq-configs/${CONFIG_ID}/edit`)
-  const topicInput = page.getByDisplayValue('orders.dlq')
+  const topicInput = page.getByLabel('Topic Name')
   await expect(topicInput).toBeVisible()
   await expect(topicInput).toHaveAttribute('readOnly', '')
   await expect(page.getByText('Topic name cannot be changed after creation.')).toBeVisible()

@@ -105,8 +105,9 @@ export default function EditDlqConfigPage() {
       <div className="card" style={{ padding: 24 }}>
         <form onSubmit={handleSubmit((d) => mutation.mutate(d))} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 12, fontWeight: 500 }}>Topic Name</label>
+            <label htmlFor="topicName" style={{ fontSize: 12, fontWeight: 500 }}>Topic Name</label>
             <input
+              id="topicName"
               className="input"
               value={config?.topicName ?? ''}
               readOnly
@@ -136,7 +137,7 @@ export default function EditDlqConfigPage() {
             </select>
           </div>
 
-          {(downloadMode === 'SCHEDULED' || downloadMode === 'BOTH') && (
+          {(downloadMode === 'SCHEDULED' || downloadMode === 'BOTH' || !!errors.cronExpression) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label htmlFor="cronExpression" style={{ fontSize: 12, fontWeight: 500 }}>Cron Expression</label>
               <input

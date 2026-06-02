@@ -36,8 +36,8 @@ test('OIDC-provisioned user with USER globalRole can access app', async ({ page 
       body: '',
     })
   )
-  await page.goto('/clusters')
-  await expect(page).toHaveURL(/\/clusters/)
+  await page.goto('/messages')
+  await expect(page).toHaveURL(/\/messages/)
 })
 
 // Full OIDC IdP redirect and backend auto-provisioning require a real OIDC provider
