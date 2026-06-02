@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { LayoutDashboard, Inbox, Server, Users, Settings, ChevronDown } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { useAuthStore } from '@/stores/authStore'
 import { useSSE } from '@/hooks/useSSE'
@@ -22,14 +23,21 @@ interface DlqConfigResponse {
 }
 
 const Chevron = ({ down }: { down: boolean }) => (
-  <svg
-    width="10" height="10" viewBox="0 0 10 10" fill="none"
-    stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-    style={{ flexShrink: 0, transition: 'transform 120ms', transform: down ? 'rotate(0deg)' : 'rotate(-90deg)' }}
-  >
-    <path d="m2 3.5 3 3 3-3" />
-  </svg>
+  <ChevronDown size={11} strokeWidth={1.6} style={{ flexShrink: 0, transition: 'transform 120ms', transform: down ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
 )
+
+function globalNavIcon(label: string) {
+  if (label === 'Overview') return <LayoutDashboard size={14} />
+  if (label === 'All Messages') return <Inbox size={14} />
+  return null
+}
+
+function adminNavIcon(label: string) {
+  if (label === 'Clusters') return <Server size={14} />
+  if (label === 'Users') return <Users size={14} />
+  if (label === 'Settings') return <Settings size={14} />
+  return null
+}
 
 function DlqBadge({ configId }: { configId: string }) {
   const { data } = useQuery({
@@ -238,12 +246,16 @@ export default function Sidebar() {
               key={label}
               to={to}
               style={{
-                display: 'block', padding: '6px 10px', fontSize: 12.5, fontWeight: 500,
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '6px 10px', fontSize: 12.5, fontWeight: 500,
                 color: active ? 'hsl(var(--accent-foreground))' : 'hsl(var(--foreground))',
                 background: active ? 'hsl(var(--accent))' : 'transparent',
                 textDecoration: 'none', borderRadius: 'var(--radius)', marginBottom: 2,
               }}
             >
+              <span style={{ color: active ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', display: 'flex' }}>
+                {globalNavIcon(label)}
+              </span>
               {label}
             </NavLink>
           )
@@ -286,12 +298,16 @@ export default function Sidebar() {
                 key={to}
                 to={to}
                 style={{
-                  display: 'block', padding: '6px 10px', fontSize: 12.5, fontWeight: 500,
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '6px 10px', fontSize: 12.5, fontWeight: 500,
                   color: active ? 'hsl(var(--accent-foreground))' : 'hsl(var(--foreground))',
                   background: active ? 'hsl(var(--accent))' : 'transparent',
                   textDecoration: 'none', borderRadius: 'var(--radius)',
                 }}
               >
+                <span style={{ color: active ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', display: 'flex' }}>
+                  {adminNavIcon(label)}
+                </span>
                 {label}
               </Link>
             )

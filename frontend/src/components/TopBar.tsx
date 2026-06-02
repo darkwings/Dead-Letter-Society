@@ -1,13 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
-
-const Logo = ({ size = 18 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="1.6" strokeLinejoin="round">
-    <rect x="2.5" y="5.5" width="19" height="13" rx="1.5" />
-    <path d="m2.5 6.5 9.5 7 9.5-7" />
-    <circle cx="12" cy="14" r="1.2" fill="hsl(var(--primary))" stroke="none" />
-  </svg>
-)
+import { Mail, LogOut } from 'lucide-react'
 
 export default function TopBar() {
   const user = useAuthStore((s) => s.user)
@@ -21,38 +14,46 @@ export default function TopBar() {
 
   return (
     <div style={{
-      height: 44,
+      height: 48,
       display: 'flex',
       alignItems: 'center',
       gap: 16,
-      padding: '0 14px',
+      padding: '0 18px',
       borderBottom: '1px solid hsl(var(--border))',
-      background: 'hsl(var(--background))',
+      background: 'hsl(225 22% 6%)',
       flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Logo />
-        <Link
-          to="/clusters"
-          style={{ fontWeight: 600, fontSize: 13, letterSpacing: -0.01, color: 'inherit', textDecoration: 'none' }}
-        >
+      <Link to="/clusters" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'inherit' }}>
+        <Mail size={16} strokeWidth={1.6} style={{ color: 'hsl(var(--primary))', flexShrink: 0 }} />
+        <span style={{ fontFamily: "'Syne', 'Geist', sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: -0.2, lineHeight: 1 }}>
           Dead Letter Society
-        </Link>
-      </div>
+        </span>
+      </Link>
       <div style={{ flex: 1 }} />
       {user && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
-          <Link
-            to="/profile"
-            style={{ textDecoration: 'none', color: 'inherit', fontSize: 12 }}
-          >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Link to="/profile" style={{ textDecoration: 'none', fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
             {user.displayName}
           </Link>
-          <span className={`badge role-${user.globalRole.toLowerCase()}`} style={{ textTransform: 'none', letterSpacing: 0, fontSize: 10.5 }}>
+          <span style={{
+            fontFamily: "'Syne', 'Geist', sans-serif",
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+            padding: '3px 7px', borderRadius: 3,
+            background: 'hsl(258 30% 14%)',
+            border: '1px solid hsl(var(--primary) / 0.45)',
+            color: 'hsl(var(--primary))',
+            textTransform: 'uppercase',
+          }}>
             {user.globalRole}
           </span>
-          <button className="btn btn-ghost btn-sm" onClick={handleLogout}>
-            Sign out
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={handleLogout}
+            title="Sign out"
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 8px', height: 26 }}
+          >
+            <LogOut size={12} />
+            <span>Sign out</span>
           </button>
         </div>
       )}
