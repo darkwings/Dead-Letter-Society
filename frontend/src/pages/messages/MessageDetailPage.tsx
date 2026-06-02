@@ -30,11 +30,99 @@ interface MessageDetail {
   replayedDecodedPayload: unknown | null
 }
 
+// ── JSON syntax highlighter ───────────────────────────────────────────────────
+
+function highlightJson(json: string): React.ReactNode[] {
+  const TOKEN = /("(?:[^"\\]|\\.)*")\s*(:)|("(?:[^"\\]|\\.)*")|(true|false|null)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|([{}[\],])/g
+  const result: React.ReactNode[] = []
+  let last = 0
+  let match: RegExpExecArray | null
+  let key = 0
+
+  while ((match = TOKEN.exec(json)) !== null) {
+    if (match.index > last) {
+      result.push(<span key={key++}>{json.slice(last, match.index)}</span>)
+    }
+    if (match[1] && match[2]) {
+      result.push(<span key={key++} style={{ color: 'hsl(var(--code-key))' }}>{match[1]}</span>)
+      result.push(<span key={key++} style={{ color: 'hsl(var(--code-punct))' }}>:</span>)
+    } else if (match[3]) {
+      result.push(<span key={key++} style={{ color: 'hsl(var(--code-string))' }}>{match[3]}</span>)
+    } else if (match[4]) {
+      result.push(<span key={key++} style={{ color: match[4] === 'null' ? 'hsl(var(--code-null))' : 'hsl(var(--code-bool))' }}>{match[4]}</span>)
+    } else if (match[5]) {
+      result.push(<span key={key++} style={{ color: 'hsl(var(--code-number))' }}>{match[5]}</span>)
+    } else if (match[6]) {
+      result.push(<span key={key++} style={{ color: 'hsl(var(--code-punct))' }}>{match[6]}</span>)
+    }
+    last = match.index + match[0].length
+  }
+  if (last < json.length) result.push(<span key={key++}>{json.slice(last)}</span>)
+  return result
+}
+
+function JsonViewer({ data, testId }: { data: unknown; testId?: string }) {
+  const json = JSON.stringify(data, null, 2)
+  const lines = json.split('\n')
+  const highlighted = highlightJson(json).reduce<React.ReactNode[][]>((acc, node) => {
+    const str = typeof node === 'string' ? node : (node as React.ReactElement).props.children as string
+    const parts = str.split('\n')
+    if (parts.length === 1) {
+      acc[acc.length - 1].push(node)
+    } else {
+      parts.forEach((part, i) => {
+        if (i > 0) acc.push([])
+        if (part) {
+          const el = node as React.ReactElement
+          acc[acc.length - 1].push(
+            i === 0 ? node : <span key={`${el.key}-${i}`} style={(el.props as React.CSSProperties & { style?: React.CSSProperties }).style}>{part}</span>
+          )
+        }
+      })
+    }
+    return acc
+  }, [[]])
+
+  return (
+    <div
+      data-testid={testId}
+      style={{
+        display: 'flex', overflow: 'auto', flex: 1, minHeight: 0,
+        fontFamily: "'Geist Mono', 'JetBrains Mono', ui-monospace, monospace",
+        fontSize: 12, lineHeight: 1.65,
+        background: 'hsl(var(--code-bg))',
+        borderRadius: 'var(--radius)',
+        padding: '14px 0',
+      }}
+    >
+      <div style={{
+        color: 'hsl(var(--code-punct))', userSelect: 'none',
+        paddingLeft: 16, paddingRight: 14, textAlign: 'right',
+        minWidth: 42, flexShrink: 0, opacity: 0.5,
+      }}>
+        {lines.map((_, i) => (
+          <div key={i}>{i + 1}</div>
+        ))}
+      </div>
+      <pre style={{ margin: 0, flex: 1, paddingRight: 16, color: 'hsl(var(--code-fg))' }}>
+        {highlighted.map((lineNodes, i) => (
+          <div key={i}>{lineNodes.length ? lineNodes : '​'}</div>
+        ))}
+      </pre>
+    </div>
+  )
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
+type Tab = 'payload' | 'raw' | 'headers' | 'replayed'
+
 export default function MessageDetailPage() {
   const { messageId } = useParams<{ messageId: string }>()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [showReplay, setShowReplay] = useState(false)
+  const [activeTab, setActiveTab] = useState<Tab>('payload')
 
   const { data: msg, isLoading, error } = useQuery({
     queryKey: ['message', messageId],
@@ -50,10 +138,7 @@ export default function MessageDetailPage() {
 
   const onSseEvent = useCallback(
     (event: { type: string; data?: Record<string, unknown> }) => {
-      if (
-        event.type === 'MESSAGE_STATUS_CHANGED' &&
-        event.data?.messageId === messageId
-      ) {
+      if (event.type === 'MESSAGE_STATUS_CHANGED' && event.data?.messageId === messageId) {
         queryClient.invalidateQueries({ queryKey: ['message', messageId] })
       }
     },
@@ -75,11 +160,7 @@ export default function MessageDetailPage() {
         body: JSON.stringify({ status }),
       }),
     onSuccess: (updatedMsg) => {
-      // update detail cache immediately
       queryClient.setQueryData(['message', messageId], updatedMsg)
-
-      // patch the new status in-place in list caches so navigating back shows
-      // the correct status without waiting for a background refetch
       const patchStatus = (old: unknown) => {
         if (!old || typeof old !== 'object') return old
         const paged = old as { messages: Array<{ id: string; status: string }>; total: number; page: number; size: number }
@@ -92,18 +173,13 @@ export default function MessageDetailPage() {
       }
       queryClient.setQueriesData({ queryKey: ['messages', msg?.dlqConfigId] }, patchStatus)
       queryClient.setQueriesData({ queryKey: ['all-messages'] }, patchStatus)
-
       toast.success('Status updated')
     },
     onError: (e: Error) => toast.error(e.message),
   })
 
   if (isLoading) {
-    return (
-      <div style={{ padding: 32 }}>
-        <p className="t-small">Loading…</p>
-      </div>
-    )
+    return <div style={{ padding: 32 }}><p className="t-small">Loading…</p></div>
   }
 
   if (error || !msg) {
@@ -120,162 +196,200 @@ export default function MessageDetailPage() {
   }
 
   const headerEntries = Object.entries(msg.headers ?? {})
+  const canAct = msg.status === 'NEW' || msg.status === 'UNDER_REVIEW' || msg.status === 'REPLAY_FAILED'
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'payload', label: 'Decoded Payload' },
+    { id: 'raw', label: 'Raw' },
+    { id: 'headers', label: `Headers${headerEntries.length ? ` (${headerEntries.length})` : ''}` },
+    ...((msg.status === 'REPLAYED' || msg.status === 'REPLAY_FAILED') && msg.replayedDecodedPayload
+      ? [{ id: 'replayed' as Tab, label: 'Replayed Payload' }]
+      : []),
+  ]
 
   return (
-    <div style={{ padding: 32, maxWidth: 900 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'hsl(var(--muted-foreground))', marginBottom: 16 }}>
-        <Link
-          to={msg?.dlqConfigId ? `/dlq-configs/${msg.dlqConfigId}/messages` : '..'}
-          style={{ textDecoration: 'none', color: 'hsl(var(--muted-foreground))' }}
-        >
-          {config?.displayName ?? 'Messages'}
-        </Link>
-        <span>/</span>
-        <span style={{ color: 'hsl(var(--foreground))' }}>Message Detail</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 className="t-h1" style={{ marginBottom: 4 }}>Message Detail</h1>
-          <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{msg.id}</p>
-        </div>
-        <StatusBadge status={msg.status} testId="status-badge" />
-      </div>
+    <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
 
-      <div className="card" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, padding: 16, marginBottom: 24 }}>
-        <div>
-          <p className="t-small" style={{ marginBottom: 2 }}>Partition</p>
-          <p style={{ fontFamily: 'monospace', fontSize: 12 }}>{msg.partition}</p>
+      {/* ── Left panel ── */}
+      <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 0 }} className="scroll">
+
+        {/* Breadcrumb */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'hsl(var(--muted-foreground))', marginBottom: 16 }}>
+          <Link
+            to={msg.dlqConfigId ? `/dlq-configs/${msg.dlqConfigId}/messages` : '..'}
+            style={{ textDecoration: 'none', color: 'hsl(var(--muted-foreground))' }}
+          >
+            {config?.displayName ?? 'Messages'}
+          </Link>
+          <span>/</span>
+          <span style={{ color: 'hsl(var(--foreground))' }}>Message Detail</span>
         </div>
-        <div>
-          <p className="t-small" style={{ marginBottom: 2 }}>Offset</p>
-          <p style={{ fontFamily: 'monospace', fontSize: 12 }}>{msg.kafkaOffset}</p>
-        </div>
-        <div>
-          <p className="t-small" style={{ marginBottom: 2 }}>Kafka Timestamp</p>
-          <p style={{ fontSize: 12 }}>{new Date(msg.kafkaTimestamp).toLocaleString()}</p>
-        </div>
-        <div>
-          <p className="t-small" style={{ marginBottom: 2 }}>Ingested At</p>
-          <p style={{ fontSize: 12 }}>{new Date(msg.ingestedAt).toLocaleString()}</p>
-        </div>
-        {msg.schemaId != null && (
-          <div style={{ gridColumn: '1 / -1' }}>
-            <p className="t-small" style={{ marginBottom: 2 }}>Schema ID</p>
-            <p style={{ fontFamily: 'monospace', fontSize: 12 }}>
-              {msg.schemaId}
-              {msg.schemaDecodeFailed && (
-                <span style={{ marginLeft: 8, color: 'hsl(var(--warning))' }}>(decode failed)</span>
-              )}
+
+        {/* Header row */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
+          <div style={{ minWidth: 0 }}>
+            <h1 className="t-h1" style={{ marginBottom: 4 }}>Message Detail</h1>
+            <p style={{ fontFamily: "'Geist Mono', ui-monospace, monospace", fontSize: 11, color: 'hsl(var(--muted-foreground))', wordBreak: 'break-all' }}>
+              {msg.id}
             </p>
           </div>
-        )}
+          <StatusBadge status={msg.status} testId="status-badge" />
+        </div>
+
+        {/* Metadata strip */}
+        <div style={{
+          display: 'flex', gap: 24, flexWrap: 'wrap',
+          padding: '10px 16px', borderRadius: 'var(--radius)',
+          background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))',
+          marginBottom: 20, fontSize: 12,
+        }}>
+          {[
+            { label: 'Partition', value: String(msg.partition), mono: true },
+            { label: 'Offset', value: String(msg.kafkaOffset), mono: true },
+            { label: 'Kafka Timestamp', value: new Date(msg.kafkaTimestamp).toLocaleString(), mono: false },
+            { label: 'Ingested At', value: new Date(msg.ingestedAt).toLocaleString(), mono: false },
+            ...(msg.schemaId != null ? [{ label: 'Schema ID', value: String(msg.schemaId) + (msg.schemaDecodeFailed ? ' (decode failed)' : ''), mono: true }] : []),
+          ].map(({ label, value, mono }) => (
+            <div key={label}>
+              <p style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', marginBottom: 2, fontWeight: 500 }}>{label}</p>
+              <p style={{ fontFamily: mono ? "'Geist Mono', ui-monospace, monospace" : undefined }}>{value}</p>
+            </div>
+          ))}
+        </div>
+
+
+        {/* Tab bar */}
+        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid hsl(var(--border))', marginBottom: 0 }}>
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              style={{
+                padding: '8px 16px', fontSize: 12, fontWeight: 500,
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: 'inherit',
+                color: activeTab === t.id ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
+                borderBottom: activeTab === t.id ? '2px solid hsl(var(--primary))' : '2px solid transparent',
+                marginBottom: -1,
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div style={{ flex: 1, minHeight: 320, display: 'flex', flexDirection: 'column', paddingTop: 16 }}>
+          {activeTab === 'payload' && (
+            msg.decodedPayload ? (
+              <JsonViewer data={msg.decodedPayload} testId="decoded-payload" />
+            ) : (
+              <p className="t-small">{msg.schemaDecodeFailed ? 'Schema decode failed.' : 'No decoded payload.'}</p>
+            )
+          )}
+
+          {activeTab === 'raw' && (
+            msg.rawPayload ? (
+              <pre
+                data-testid="raw-payload"
+                style={{
+                  fontFamily: "'Geist Mono', 'JetBrains Mono', ui-monospace, monospace",
+                  fontSize: 12, lineHeight: 1.65, padding: 16, margin: 0,
+                  background: 'hsl(var(--code-bg))', borderRadius: 'var(--radius)',
+                  overflow: 'auto', wordBreak: 'break-all', whiteSpace: 'pre-wrap',
+                  color: 'hsl(var(--code-fg))',
+                }}
+              >
+                {msg.rawPayload}
+              </pre>
+            ) : (
+              <p className="t-small">Empty payload.</p>
+            )
+          )}
+
+          {activeTab === 'headers' && (
+            headerEntries.length > 0 ? (
+              <div className="card" style={{ overflow: 'hidden' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Key</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {headerEntries.map(([k, v]) => (
+                      <tr key={k}>
+                        <td style={{ fontFamily: "'Geist Mono', ui-monospace, monospace", fontSize: 12 }}>{k}</td>
+                        <td style={{ fontFamily: "'Geist Mono', ui-monospace, monospace", fontSize: 12 }}>{v}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="t-small">No headers.</p>
+            )
+          )}
+
+          {activeTab === 'replayed' && (
+            msg.replayedDecodedPayload
+              ? <JsonViewer data={msg.replayedDecodedPayload} testId="replayed-decoded-payload" />
+              : <p className="t-small">Original payload replayed without modifications.</p>
+          )}
+        </div>
       </div>
 
-      {(msg.status === 'NEW' || msg.status === 'UNDER_REVIEW' || msg.status === 'REPLAY_FAILED') && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-          {msg.status === 'NEW' && (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => statusMutation.mutate('UNDER_REVIEW')}
-              disabled={statusMutation.isPending}
-            >
-              Mark Under Review
-            </button>
-          )}
-          <button
-            className="btn btn-destructive btn-sm"
-            onClick={() => statusMutation.mutate('DISCARDED')}
-            disabled={statusMutation.isPending}
-          >
-            Discard
-          </button>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => setShowReplay(true)}
-            data-testid="replay-button"
-          >
-            Replay
-          </button>
-        </div>
-      )}
-
-      <section style={{ marginBottom: 24 }}>
-        <h2 className="t-h2" style={{ marginBottom: 8 }}>Decoded Payload</h2>
-        {msg.decodedPayload ? (
-          <pre
-            data-testid="decoded-payload"
-            className="card json"
-            style={{ padding: 16, overflow: 'auto', maxHeight: 320, fontSize: 12 }}
-          >
-            {JSON.stringify(msg.decodedPayload, null, 2)}
-          </pre>
-        ) : (
-          <p className="t-small">
-            {msg.schemaDecodeFailed ? 'Schema decode failed.' : 'No decoded payload (raw message).'}
-          </p>
-        )}
-      </section>
-
-      <section style={{ marginBottom: 24 }}>
-        <h2 className="t-h2" style={{ marginBottom: 8 }}>Raw Payload</h2>
-        {msg.rawPayload ? (
-          <pre
-            data-testid="raw-payload"
-            className="card t-code"
-            style={{ padding: 16, overflow: 'auto', maxHeight: 160, wordBreak: 'break-all' }}
-          >
-            {msg.rawPayload}
-          </pre>
-        ) : (
-          <p className="t-small">Empty payload.</p>
-        )}
-      </section>
-
-      {(msg.status === 'REPLAYED' || msg.status === 'REPLAY_FAILED') && (
-        <section style={{ marginBottom: 24 }}>
-          <h2 className="t-h2" style={{ marginBottom: 8 }}>Replayed Payload</h2>
-          {msg.replayedDecodedPayload ? (
-            <pre
-              data-testid="replayed-decoded-payload"
-              className="card json"
-              style={{ padding: 16, overflow: 'auto', maxHeight: 320, fontSize: 12 }}
-            >
-              {JSON.stringify(msg.replayedDecodedPayload, null, 2)}
-            </pre>
+      {/* ── Right panel ── */}
+      <div style={{
+        width: 300, flexShrink: 0,
+        borderLeft: '1px solid hsl(var(--border))',
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+        {/* Actions */}
+        <div style={{ padding: '20px 16px', borderBottom: '1px solid hsl(var(--border))' }}>
+          <p className="t-h4" style={{ marginBottom: 12 }}>Actions</p>
+          {canAct ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                className="btn btn-primary"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => setShowReplay(true)}
+                data-testid="replay-button"
+                disabled={statusMutation.isPending}
+              >
+                Replay
+              </button>
+              {msg.status === 'NEW' && (
+                <button
+                  className="btn btn-secondary"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => statusMutation.mutate('UNDER_REVIEW')}
+                  disabled={statusMutation.isPending}
+                >
+                  Mark Under Review
+                </button>
+              )}
+              <button
+                className="btn btn-destructive"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => statusMutation.mutate('DISCARDED')}
+                disabled={statusMutation.isPending}
+              >
+                Discard
+              </button>
+            </div>
           ) : (
-            <p className="t-small">Original payload replayed without modifications.</p>
+            <p className="t-small">No actions available for status <strong>{msg.status.replace(/_/g, ' ')}</strong>.</p>
           )}
-        </section>
-      )}
+        </div>
 
-      {headerEntries.length > 0 && (
-        <section style={{ marginBottom: 24 }}>
-          <h2 className="t-h2" style={{ marginBottom: 8 }}>Headers</h2>
-          <div className="card" style={{ overflow: 'hidden' }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Key</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {headerEntries.map(([k, v]) => (
-                  <tr key={k}>
-                    <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{k}</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{v}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      <section className="card" style={{ padding: 16, marginBottom: 24 }}>
-        <h2 className="t-h2" style={{ marginBottom: 16 }}>Notes</h2>
-        {messageId && <NoteThread messageId={messageId} />}
-      </section>
+        {/* Note Thread */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {messageId && <NoteThread messageId={messageId} />}
+        </div>
+      </div>
 
       {showReplay && messageId && (
         <ReplayWizard

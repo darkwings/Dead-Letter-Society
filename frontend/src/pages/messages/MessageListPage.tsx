@@ -424,18 +424,6 @@ export default function MessageListPage() {
           })}
         </div>
 
-        {appliedFilters.status === 'ALL' && activeDatePartitionCount === 0 && (
-          <p className="t-small" style={{ color: 'hsl(var(--muted-foreground))', marginBottom: 12 }}>
-            Discarded messages are hidden.{' '}
-            <button
-              className="btn btn-ghost"
-              style={{ height: 'auto', padding: 0, fontSize: 'inherit', color: 'hsl(var(--primary))' }}
-              onClick={() => setStatusImmediate('DISCARDED')}
-            >
-              Show discarded
-            </button>
-          </p>
-        )}
         {isLoading ? (
           <p className="t-small">Loading…</p>
         ) : messages.length === 0 ? (

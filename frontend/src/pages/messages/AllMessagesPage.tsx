@@ -34,13 +34,22 @@ interface ClusterMeta {
 }
 
 const STATUS_OPTIONS = [
-  { value: '', label: 'All statuses' },
+  { value: '', label: 'All' },
   { value: 'NEW', label: 'New' },
   { value: 'UNDER_REVIEW', label: 'Under Review' },
   { value: 'DISCARDED', label: 'Discarded' },
   { value: 'REPLAYED', label: 'Replayed' },
   { value: 'REPLAY_FAILED', label: 'Replay Failed' },
 ]
+
+const CHIP_COLORS: Record<string, { color: string; bg: string; border: string }> = {
+  '':           { color: 'hsl(var(--primary))',              bg: 'hsl(var(--primary-muted))',           border: 'hsl(var(--primary) / 0.45)' },
+  NEW:          { color: 'hsl(var(--status-new))',           bg: 'hsl(var(--status-new-bg))',            border: 'hsl(var(--status-new) / 0.45)' },
+  UNDER_REVIEW: { color: 'hsl(var(--status-under-review))',  bg: 'hsl(var(--status-under-review-bg))',   border: 'hsl(var(--status-under-review) / 0.45)' },
+  REPLAYED:     { color: 'hsl(var(--status-replayed))',      bg: 'hsl(var(--status-replayed-bg))',       border: 'hsl(var(--status-replayed) / 0.45)' },
+  DISCARDED:    { color: 'hsl(var(--status-discarded))',     bg: 'hsl(var(--status-discarded-bg))',      border: 'hsl(var(--status-discarded) / 0.35)' },
+  REPLAY_FAILED:{ color: 'hsl(var(--status-replay-failed))', bg: 'hsl(var(--status-replay-failed-bg))', border: 'hsl(var(--status-replay-failed) / 0.45)' },
+}
 
 const PAGE_SIZE = 50
 
@@ -53,9 +62,13 @@ function payloadPreview(msg: AllMessageItem): string {
 }
 
 export default function AllMessagesPage() {
-  const [statusFilter, setStatusFilter] = useState('')
   const [appliedStatus, setAppliedStatus] = useState('')
   const [page, setPage] = useState(0)
+
+  function setStatusImmediate(value: string) {
+    setAppliedStatus(value)
+    setPage(0)
+  }
 
   const { data: clusters = [] } = useQuery({
     queryKey: ['clusters'],
@@ -95,43 +108,34 @@ export default function AllMessagesPage() {
   const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  function applyFilter() {
-    setPage(0)
-    setAppliedStatus(statusFilter)
-  }
-
   return (
     <div style={{ padding: 32 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16 }}>
         <h1 className="t-h1">All Messages</h1>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select
-            className="select"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            aria-label="Status filter"
-            style={{ width: 160 }}
-          >
-            {STATUS_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <button className="btn btn-secondary" onClick={applyFilter}>Apply</button>
-        </div>
       </div>
 
-      {appliedStatus !== 'DISCARDED' && (
-        <p className="t-small" style={{ color: 'hsl(var(--muted-foreground))', marginBottom: 12 }}>
-          Discarded messages are hidden.{' '}
-          <button
-            className="btn btn-ghost"
-            style={{ height: 'auto', padding: 0, fontSize: 'inherit', color: 'hsl(var(--primary))' }}
-            onClick={() => { setStatusFilter('DISCARDED'); setAppliedStatus('DISCARDED'); setPage(0) }}
-          >
-            Show discarded
-          </button>
-        </p>
-      )}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
+        {STATUS_OPTIONS.map(o => {
+          const c = CHIP_COLORS[o.value]
+          const active = appliedStatus === o.value
+          return (
+            <button
+              key={o.value}
+              onClick={() => setStatusImmediate(o.value)}
+              style={{
+                padding: '4px 12px', borderRadius: 20,
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                border: active ? `1px solid ${c.border}` : '1px solid hsl(var(--border))',
+                cursor: 'pointer', fontFamily: 'inherit',
+                background: active ? c.bg : 'transparent',
+                color: active ? c.color : 'hsl(var(--muted-foreground))',
+              }}
+            >
+              {o.label}
+            </button>
+          )
+        })}
+      </div>
       {isLoading ? (
         <p className="t-small">Loading…</p>
       ) : messages.length === 0 ? (

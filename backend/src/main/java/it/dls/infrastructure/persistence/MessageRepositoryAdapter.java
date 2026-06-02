@@ -50,9 +50,6 @@ public class MessageRepositoryAdapter implements MessageRepository {
         if (f.status() != null) {
             base.append(" AND status = :status");
             params.put("status", f.status());
-        } else {
-            base.append(" AND status != :excludeStatus");
-            params.put("excludeStatus", MessageStatus.DISCARDED);
         }
         if (f.timestampFrom() != null) {
             base.append(" AND kafkaTimestamp >= :tsFrom");
@@ -98,9 +95,6 @@ public class MessageRepositoryAdapter implements MessageRepository {
         if (statusFilter != null) {
             base.append(" AND status = :status");
             params.put("status", statusFilter);
-        } else {
-            base.append(" AND status != :excludeStatus");
-            params.put("excludeStatus", MessageStatus.DISCARDED);
         }
         String q = base.toString();
         long total = DlqMessageEntity.count(q, params);
