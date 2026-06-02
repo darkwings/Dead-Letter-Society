@@ -43,6 +43,8 @@
 #   cd backend && ./gradlew test -Dtls.test.enabled=true \
 #     --tests "it.dls.infrastructure.kafka.KafkaConnectivityAdapterIT"
 
+name: dls-tls-test
+
 services:
 
   # ── Kafka (KRaft, two listeners) ─────────────────────────────────────────────

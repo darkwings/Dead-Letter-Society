@@ -31,6 +31,8 @@
 #   cd backend && ./gradlew test -Dsasl.test.enabled=true \
 #     --tests "it.dls.infrastructure.kafka.KafkaConnectivityAdapterIT"
 
+name: dls-sasl-test
+
 services:
 
   # ── Kafka (KRaft, two listeners) ─────────────────────────────────────────────

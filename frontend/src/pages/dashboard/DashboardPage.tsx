@@ -44,21 +44,29 @@ const STATUS_CONFIG = [
 
 function SummaryCardSkeleton() {
   return (
-    <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ height: 12, width: 80, background: 'hsl(var(--muted))', borderRadius: 4 }} />
-      <div style={{ height: 28, width: 60, background: 'hsl(var(--muted))', borderRadius: 4 }} />
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ height: 3, background: 'hsl(var(--muted))' }} />
+      <div style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ height: 26, width: 56, background: 'hsl(var(--muted))', borderRadius: 4 }} />
+        <div style={{ height: 11, width: 80, background: 'hsl(var(--muted))', borderRadius: 4 }} />
+      </div>
     </div>
   )
 }
 
 function SummaryCard({ label, count, color }: { label: string; count: number; color: string }) {
   return (
-    <div className="card" style={{ padding: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-        <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>{label}</span>
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ height: 3, background: color }} />
+      <div style={{ padding: '14px 16px 16px' }}>
+        <p style={{ fontFamily: "'Syne', 'Geist', sans-serif", fontSize: 26, fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.03em', margin: '0 0 6px' }}>
+          {count.toLocaleString()}
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
+          <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>{label}</span>
+        </div>
       </div>
-      <p style={{ fontSize: 28, fontWeight: 700, lineHeight: 1 }}>{count.toLocaleString()}</p>
     </div>
   )
 }
@@ -113,7 +121,7 @@ export default function DashboardPage() {
 
   const chartData = sparkline.map(p => ({
     date: p.date.slice(5),
-    rate: Math.round(p.replayRate),
+    rate: p.total === 0 ? 0 : Math.round(p.replayed / p.total * 100),
   }))
 
   return (

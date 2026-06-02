@@ -7,6 +7,8 @@
 #
 # Unit/IT tests still use Quarkus Dev Services (Testcontainers) — no changes needed here.
 
+name: dls-dev
+
 networks:
   dls-dev:
 

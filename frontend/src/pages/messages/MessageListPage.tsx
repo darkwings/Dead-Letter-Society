@@ -45,6 +45,15 @@ const STATUS_OPTIONS = [
   { value: 'REPLAY_FAILED', label: 'Replay Failed' },
 ]
 
+const CHIP_COLORS: Record<string, { color: string; bg: string; border: string }> = {
+  ALL:          { color: 'hsl(var(--primary))',            bg: 'hsl(var(--primary-muted))',         border: 'hsl(var(--primary) / 0.45)' },
+  NEW:          { color: 'hsl(var(--status-new))',         bg: 'hsl(var(--status-new-bg))',          border: 'hsl(var(--status-new) / 0.45)' },
+  UNDER_REVIEW: { color: 'hsl(var(--status-under-review))', bg: 'hsl(var(--status-under-review-bg))', border: 'hsl(var(--status-under-review) / 0.45)' },
+  REPLAYED:     { color: 'hsl(var(--status-replayed))',    bg: 'hsl(var(--status-replayed-bg))',     border: 'hsl(var(--status-replayed) / 0.45)' },
+  DISCARDED:    { color: 'hsl(var(--status-discarded))',   bg: 'hsl(var(--status-discarded-bg))',    border: 'hsl(var(--status-discarded) / 0.35)' },
+  REPLAY_FAILED:{ color: 'hsl(var(--status-replay-failed))', bg: 'hsl(var(--status-replay-failed-bg))', border: 'hsl(var(--status-replay-failed) / 0.45)' },
+}
+
 function payloadPreview(msg: MessageSummary): string {
   if (msg.decodedPayload) {
     const str = JSON.stringify(msg.decodedPayload)
@@ -212,6 +221,25 @@ export default function MessageListPage() {
     onError: (e: Error) => toast.error(e.message),
   })
 
+  const hasPendingChanges =
+    fromFilter !== appliedFilters.from ||
+    toFilter !== appliedFilters.to ||
+    partitionFilter !== appliedFilters.partition
+
+  const activeDatePartitionCount = [
+    appliedFilters.status !== 'ALL',
+    !!appliedFilters.from,
+    !!appliedFilters.to,
+    !!appliedFilters.partition,
+  ].filter(Boolean).length
+
+  function setStatusImmediate(value: string) {
+    setStatusFilter(value)
+    setPage(0)
+    setSelectedIds(new Set())
+    setAppliedFilters(prev => ({ ...prev, status: value }))
+  }
+
   return (
     <div style={{ padding: 32, display: 'flex', gap: 20 }}>
       {/* Filter panel */}
@@ -220,46 +248,82 @@ export default function MessageListPage() {
         position: 'sticky', top: 0, alignSelf: 'flex-start',
       }}>
         <div className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p className="t-h4">Filters</p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label htmlFor="status-filter" style={{ fontSize: 11, fontWeight: 500 }}>Status</label>
-            <select
-              id="status-filter"
-              className="select"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              {STATUS_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <p className="t-h4" style={{ margin: 0 }}>Filters</p>
+            {activeDatePartitionCount > 0 && (
+              <span style={{
+                fontSize: 10, fontWeight: 700,
+                padding: '2px 6px', borderRadius: 8,
+                background: 'hsl(var(--primary-muted))',
+                color: 'hsl(var(--primary))',
+              }}>
+                {activeDatePartitionCount} active
+              </span>
+            )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label htmlFor="from-filter" style={{ fontSize: 11, fontWeight: 500 }}>From</label>
-            <input
-              id="from-filter"
-              type="date"
-              className="input"
-              value={fromFilter}
-              onChange={(e) => setFromFilter(e.target.value)}
-            />
+          {/* Date range */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 500, color: 'hsl(var(--muted-foreground))' }}>Date range</label>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>From</span>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="datetime-local"
+                  className="input"
+                  value={fromFilter}
+                  onChange={(e) => setFromFilter(e.target.value)}
+                  style={{ width: '100%', paddingRight: fromFilter ? 28 : undefined, colorScheme: 'dark' }}
+                />
+                {fromFilter && (
+                  <button
+                    onClick={() => setFromFilter('')}
+                    style={{
+                      position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'hsl(var(--muted-foreground))', fontSize: 14, lineHeight: 1, padding: 2,
+                    }}
+                    aria-label="Clear from date"
+                  >×</button>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>To</span>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="datetime-local"
+                  className="input"
+                  value={toFilter}
+                  onChange={(e) => setToFilter(e.target.value)}
+                  style={{ width: '100%', paddingRight: toFilter ? 28 : undefined, colorScheme: 'dark' }}
+                />
+                {toFilter && (
+                  <button
+                    onClick={() => setToFilter('')}
+                    style={{
+                      position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'hsl(var(--muted-foreground))', fontSize: 14, lineHeight: 1, padding: 2,
+                    }}
+                    aria-label="Clear to date"
+                  >×</button>
+                )}
+              </div>
+            </div>
+
+            {!fromFilter && !toFilter && (
+              <p style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', margin: 0 }}>No date filter set</p>
+            )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label htmlFor="to-filter" style={{ fontSize: 11, fontWeight: 500 }}>To</label>
-            <input
-              id="to-filter"
-              type="date"
-              className="input"
-              value={toFilter}
-              onChange={(e) => setToFilter(e.target.value)}
-            />
-          </div>
+          <div style={{ height: 1, background: 'hsl(var(--border))' }} />
 
+          {/* Partition */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label htmlFor="partition-filter" style={{ fontSize: 11, fontWeight: 500 }}>Partition</label>
+            <label htmlFor="partition-filter" style={{ fontSize: 11, fontWeight: 500, color: 'hsl(var(--muted-foreground))' }}>Partition</label>
             <input
               id="partition-filter"
               type="number"
@@ -267,16 +331,23 @@ export default function MessageListPage() {
               className="input"
               value={partitionFilter}
               onChange={(e) => setPartitionFilter(e.target.value)}
-              placeholder="Any"
+              placeholder="All partitions"
             />
           </div>
 
-          <button className="btn btn-primary" style={{ height: 32 }} onClick={applyFilters}>
-            Apply
+          <button
+            className={hasPendingChanges ? 'btn btn-primary' : 'btn btn-secondary'}
+            style={{ height: 32 }}
+            onClick={applyFilters}
+            disabled={!hasPendingChanges}
+          >
+            {hasPendingChanges ? 'Apply filters' : 'Filters applied'}
           </button>
-          <button className="btn btn-ghost" style={{ height: 28, fontSize: 11 }} onClick={clearFilters}>
-            Clear filters
-          </button>
+          {activeDatePartitionCount > 0 && (
+            <button className="btn btn-ghost" style={{ height: 28, fontSize: 11 }} onClick={clearFilters}>
+              Clear all filters
+            </button>
+          )}
         </div>
       </aside>
 
@@ -329,18 +400,37 @@ export default function MessageListPage() {
           </div>
         </div>
 
-        {appliedFilters.status !== 'DISCARDED' && (
+        {/* Status chips */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+          {STATUS_OPTIONS.map(o => {
+            const c = CHIP_COLORS[o.value]
+            const active = appliedFilters.status === o.value
+            return (
+              <button
+                key={o.value}
+                onClick={() => setStatusImmediate(o.value)}
+                style={{
+                  padding: '4px 12px', borderRadius: 20,
+                  fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  border: active ? `1px solid ${c.border}` : '1px solid hsl(var(--border))',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  background: active ? c.bg : 'transparent',
+                  color: active ? c.color : 'hsl(var(--muted-foreground))',
+                }}
+              >
+                {o.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {appliedFilters.status === 'ALL' && activeDatePartitionCount === 0 && (
           <p className="t-small" style={{ color: 'hsl(var(--muted-foreground))', marginBottom: 12 }}>
             Discarded messages are hidden.{' '}
             <button
               className="btn btn-ghost"
               style={{ height: 'auto', padding: 0, fontSize: 'inherit', color: 'hsl(var(--primary))' }}
-              onClick={() => {
-                setStatusFilter('DISCARDED')
-                setPage(0)
-                setSelectedIds(new Set())
-                setAppliedFilters({ status: 'DISCARDED', from: appliedFilters.from, to: appliedFilters.to, partition: appliedFilters.partition })
-              }}
+              onClick={() => setStatusImmediate('DISCARDED')}
             >
               Show discarded
             </button>
