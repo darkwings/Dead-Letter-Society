@@ -19,6 +19,7 @@ const configFixture = {
 
 test.beforeEach(async ({ page }) => {
   await loginAsAdmin(page)
+  await page.route('/api/header-presets', (route) => route.fulfill({ json: [] }))
   await page.route(`/api/dlq-configs/${CONFIG_ID}`, (route) =>
     route.fulfill({ json: configFixture })
   )

@@ -5,7 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { apiFetch, ApiError } from '@/lib/api'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import HeaderMappingFields, { EMPTY_MAPPING, type HeaderMappingValue, type HeaderPresetName } from '@/components/HeaderMappingFields'
 
 interface DlqConfigDetail {
   id: string
@@ -18,6 +19,8 @@ interface DlqConfigDetail {
   retentionType: 'MAX_AGE_DAYS' | 'MAX_COUNT'
   retentionValue: number
   defaultReplayTopic: string | null
+  headerPreset?: HeaderPresetName
+  headerMapping?: HeaderMappingValue
 }
 
 const schema = z.object({
@@ -57,9 +60,13 @@ export default function EditDlqConfigPage() {
         retentionValue: config.retentionValue,
         defaultReplayTopic: config.defaultReplayTopic ?? '',
       })
+      setHeaderPreset(config.headerPreset ?? 'LEGACY')
+      setHeaderMapping({ ...EMPTY_MAPPING, ...(config.headerMapping ?? {}) })
     }
   }, [config, reset])
 
+  const [headerPreset, setHeaderPreset] = useState<HeaderPresetName>('LEGACY')
+  const [headerMapping, setHeaderMapping] = useState<HeaderMappingValue>(EMPTY_MAPPING)
   const downloadMode = watch('downloadMode')
   const retentionType = watch('retentionType')
 
@@ -69,6 +76,8 @@ export default function EditDlqConfigPage() {
         ...data,
         cronExpression: data.cronExpression?.trim() || null,
         defaultReplayTopic: data.defaultReplayTopic?.trim() || null,
+        headerPreset,
+        headerMapping: headerPreset === 'CUSTOM' ? headerMapping : undefined,
       }
       return apiFetch(`/api/clusters/${clusterId}/dlq-configs/${configId}`, {
         method: 'PUT',
@@ -189,10 +198,16 @@ export default function EditDlqConfigPage() {
             <input
               id="defaultReplayTopic"
               className="input"
-              placeholder="Leave blank to use x-original-topic header"
+              placeholder="Leave blank to use the original-topic header from the header mapping"
               {...register('defaultReplayTopic')}
             />
           </div>
+
+          <HeaderMappingFields
+            preset={headerPreset}
+            mapping={headerMapping}
+            onChange={(p, m) => { setHeaderPreset(p); setHeaderMapping(m) }}
+          />
 
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button
