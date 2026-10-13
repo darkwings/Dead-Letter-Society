@@ -29,6 +29,8 @@ public class DlqConfigRepositoryAdapter implements DlqConfigRepository {
             existing.retentionValue = config.getRetentionPolicy().value();
             existing.schemaRegistryId = config.getSchemaRegistryId();
             existing.defaultReplayTopic = config.getDefaultReplayTopic();
+            existing.headerPreset = config.getHeaderPreset();
+            existing.headerMapping = DlqConfigEntity.mappingToJson(config.getHeaderMapping());
             existing.updatedAt = Instant.now();
             syncAssignments(existing, config);
             syncPartitionOffsets(existing, config);
