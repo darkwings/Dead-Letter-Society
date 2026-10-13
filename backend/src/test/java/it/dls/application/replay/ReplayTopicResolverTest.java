@@ -95,4 +95,25 @@ class ReplayTopicResolverTest {
         assertThatThrownBy(() -> resolver.resolve(msg, config, null))
             .isInstanceOf(ReplayTopicNotResolvableException.class);
     }
+
+    @Test
+    void blankMappedHeaderIsTreatedAsMissing() {
+        var msg = messageWithHeader("x-original-topic", "   ");
+        var config = configWithNoOverride();
+        assertThatThrownBy(() -> resolver.resolve(msg, config, null))
+            .isInstanceOf(ReplayTopicNotResolvableException.class);
+    }
+
+    @Test
+    void wizardOverrideIsStripped() {
+        var msg = messageWithHeader("x-original-topic", "orders");
+        assertThat(resolver.resolve(msg, configWithNoOverride(), "  orders-wizard "))
+            .isEqualTo("orders-wizard");
+    }
+
+    @Test
+    void headerTopicIsStripped() {
+        var msg = messageWithHeader("x-original-topic", " orders ");
+        assertThat(resolver.resolve(msg, configWithNoOverride(), null)).isEqualTo("orders");
+    }
 }

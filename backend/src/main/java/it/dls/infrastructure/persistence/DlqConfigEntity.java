@@ -1,11 +1,13 @@
 package it.dls.infrastructure.persistence;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import it.dls.domain.dlqconfig.*;
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.jboss.logging.Logger;
 import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -53,7 +55,9 @@ public class DlqConfigEntity extends PanacheEntityBase {
     @Column(name = "default_replay_topic")
     public String defaultReplayTopic;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Logger LOG = Logger.getLogger(DlqConfigEntity.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @Enumerated(EnumType.STRING)
     @Column(name = "header_preset")
@@ -117,16 +121,19 @@ public class DlqConfigEntity extends PanacheEntityBase {
             .collect(Collectors.toList());
         return DlqConfig.reconstitute(id, clusterId, topicName, displayName,
             fetch, retention, schemaRegistryId, userAssignments, offsets, defaultReplayTopic,
-            headerPreset, headerMapping == null ? null : mappingFromJson(headerMapping));
+            headerPreset, readMappingOrPresetDefault());
     }
 
     public static JsonNode mappingToJson(HeaderMapping m) { return MAPPER.valueToTree(m); }
 
-    private static HeaderMapping mappingFromJson(JsonNode n) {
+    /** A corrupt or incompatible stored mapping must never make the config unreadable. */
+    private HeaderMapping readMappingOrPresetDefault() {
+        if (headerMapping == null) return null;
         try {
-            return MAPPER.treeToValue(n, HeaderMapping.class);
+            return MAPPER.treeToValue(headerMapping, HeaderMapping.class);
         } catch (Exception e) {
-            throw new IllegalStateException("Invalid header_mapping JSON", e);
+            LOG.warnf("Unreadable header_mapping for DLQ config %s, using preset default: %s", id, e.getMessage());
+            return headerPreset != null ? headerPreset.mapping() : null;
         }
     }
 }
