@@ -19,6 +19,7 @@
 - Replay topic priority unchanged: wizard override → config `defaultReplayTopic` → mapped original-topic header.
 - Frontend types hand-written, co-located with pages (no generated client); single `apiFetch<T>`.
 - E2E tests that open `MessageDetailPage` must mock `/api/events`; use `loginAsAdmin/Operator/Viewer` from `e2e/helpers/auth.ts`.
+- Missing or unmappable headers must never fail ingestion, message viewing or the UI. When the replay topic cannot be derived, the user can always supply it: single replay via the wizard's topic override (existing), bulk replay via a new optional `targetTopicOverride`. Neither replay button is disabled just because no topic could be inferred.
 - Commits end with `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
 - Backend tests: `cd backend && ./gradlew test --tests '<pattern>'`. Playwright: `cd frontend && npx playwright test <file>`.
 
@@ -30,6 +31,7 @@
 - Config deleted / missing when assembling a message page → `FailureInfo.empty()`, endpoint still 200. (Task 6)
 - CUSTOM preset with blank header name or disallowed encoding (e.g. `originalTopic` with INT32) → 400. (Task 5)
 - Existing config rows after V10 → `LEGACY`, `x-original-topic` still resolves replay topic. (Task 3)
+- Message ingested with no headers at all (or none of the mapped ones) under any preset → ingested normally, `failureInfo` all null, replay possible with an explicit topic (single and bulk). (Task 4, Task 6, Task 8)
 
 ---
 
@@ -843,15 +845,15 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 4: Ingestion uses the mapping (raw bytes → decoded headers) and Replay resolves topic from mapping
+### Task 4: Ingestion uses the mapping; Replay resolves topic from mapping; bulk replay accepts a topic override
 
 **Files:**
-- Modify: `domain/shared/RawKafkaMessage.java`, `infrastructure/kafka/KafkaConsumerAdapter.java:109-114`, `application/fetch/FetchMessagesUseCase.java` (`ingest`, ~line 216), `application/replay/ReplayTopicResolver.java`, `application/replay/ReplayTopicNotResolvableException.java`
-- Test: `application/fetch/FetchMessagesUseCaseTest.java` (add), `application/replay/ReplayTopicResolverTest.java` (add)
+- Modify: `domain/shared/RawKafkaMessage.java`, `infrastructure/kafka/KafkaConsumerAdapter.java:109-114`, `application/fetch/FetchMessagesUseCase.java` (`ingest`, ~line 216), `application/replay/ReplayTopicResolver.java`, `application/replay/ReplayTopicNotResolvableException.java`, `application/replay/BulkReplayUseCase.java`, `infrastructure/api/message/BulkReplayRequest.java`, `infrastructure/api/message/DlqConfigMessagesResource.java:61-75`
+- Test: `application/fetch/FetchMessagesUseCaseTest.java` (add), `application/replay/ReplayTopicResolverTest.java` (add), `application/replay/ReplayMessageUseCaseTest.java` (add), `application/replay/BulkReplayUseCaseTest.java` (new)
 
 **Interfaces:**
 - Consumes: `HeaderDecoder.decode` (Task 2), `DlqConfig.getHeaderMapping()` (Task 3)
-- Produces: `RawKafkaMessage(int partition, long offset, Instant timestamp, byte[] key, byte[] value, Map<String,byte[]> headers)`; `ReplayTopicNotResolvableException(UUID messageId)` message no longer names a fixed header.
+- Produces: `RawKafkaMessage(int partition, long offset, Instant timestamp, byte[] key, byte[] value, Map<String,byte[]> headers)`; `ReplayTopicNotResolvableException(UUID messageId)` message no longer names a fixed header; `BulkReplayUseCase.bulkReplay(UUID dlqConfigId, List<UUID> messageIds, UUID replayedBy, String targetTopicOverride)` (the 3-arg overload stays and delegates with `null`); `BulkReplayRequest(List<UUID> messageIds, String targetTopicOverride)` (`targetTopicOverride` optional, blank treated as absent).
 
 - [ ] **Step 1: Write failing tests**
 
@@ -913,9 +915,160 @@ Append to `FetchMessagesUseCaseTest` (uses existing helpers `buildCluster`, `bui
     }
 ```
 
+Append to `FetchMessagesUseCaseTest` — a message with no headers at all is ingested under a non-legacy preset:
+```java
+    @Test
+    void messageWithoutAnyHeadersIsIngestedUnderSpringPreset() {
+        var cluster = buildCluster();
+        var config = buildDlqConfig(cluster, DownloadMode.ON_DEMAND, 100);
+        config.changeHeaderMapping(HeaderPreset.SPRING, null);
+        when(configRepo.findById(config.getId())).thenReturn(Optional.of(config));
+        when(clusterRepo.findById(cluster.getId())).thenReturn(Optional.of(cluster));
+        when(kafkaConsumer.getPartitions(any(), any(), any())).thenReturn(List.of(0));
+        when(kafkaConsumer.getEarliestOffsets(any(), any(), any(), any())).thenReturn(Map.of(0, 0L));
+        when(kafkaConsumer.fetch(any(), any(), any(), any(), anyInt()))
+            .thenReturn(List.of(new RawKafkaMessage(0, 1L, Instant.now(), null, "{}".getBytes(), Map.of())));
+
+        useCase.fetchOnDemand(config.getId(), UUID.randomUUID());
+
+        verify(messageRepo).save(argThat((DlqMessage m) -> m.getHeaders().isEmpty()));
+    }
+```
+
+Append to `ReplayMessageUseCaseTest` — single replay succeeds with a wizard override when no mapped header exists (reuse the fixtures/mocks already in that class; mirror `successfulReplay_transitionsToReplayed` but with `Map.of()` headers and a non-null override):
+```java
+    @Test
+    void replayWithoutOriginalTopicHeaderSucceedsWhenWizardSuppliesTopic() {
+        var msg = message(MSG_ID, CONFIG_ID, MessageStatus.NEW, Map.of(), null);
+        when(messageRepo.findById(MSG_ID)).thenReturn(Optional.of(msg));
+        when(configRepo.findById(CONFIG_ID)).thenReturn(Optional.of(config(CONFIG_ID, CLUSTER_ID)));
+        when(clusterRepo.findById(CLUSTER_ID)).thenReturn(Optional.of(plaintextCluster(CLUSTER_ID)));
+
+        var result = useCase.replay(MSG_ID, "orders-manual", null, USER_ID);
+
+        assertThat(result.success()).isTrue();
+        verify(producer).publish(any(), any(), eq("orders-manual"), any(), any(), any());
+        assertThat(msg.getStatus()).isEqualTo(MessageStatus.REPLAYED);
+    }
+```
+(If the neighbouring success test stubs additional collaborators — e.g. `schemaRegistry` — copy those stubs; adjust the `replay(...)` call to the real signature used there.)
+
+Create `application/replay/BulkReplayUseCaseTest.java`:
+```java
+package it.dls.application.replay;
+
+import it.dls.domain.cluster.KafkaCluster;
+import it.dls.domain.cluster.KafkaClusterRepository;
+import it.dls.domain.cluster.KafkaSecurityConfig;
+import it.dls.domain.dlqconfig.DlqConfig;
+import it.dls.domain.dlqconfig.DlqConfigRepository;
+import it.dls.domain.dlqconfig.FetchConfig;
+import it.dls.domain.dlqconfig.RetentionPolicy;
+import it.dls.domain.message.DlqMessage;
+import it.dls.domain.message.MessageRepository;
+import it.dls.domain.message.MessageStatus;
+import it.dls.domain.message.ReplayAuditRecordRepository;
+import it.dls.domain.shared.EncryptionPort;
+import it.dls.domain.shared.KafkaProducerPort;
+import it.dls.domain.shared.NotificationPort;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
+class BulkReplayUseCaseTest {
+
+    KafkaProducerPort producer = mock(KafkaProducerPort.class);
+    MessageRepository messageRepo = mock(MessageRepository.class);
+    DlqConfigRepository configRepo = mock(DlqConfigRepository.class);
+    KafkaClusterRepository clusterRepo = mock(KafkaClusterRepository.class);
+    NotificationPort notifier = mock(NotificationPort.class);
+    ReplayAuditRecordRepository auditRepo = mock(ReplayAuditRecordRepository.class);
+    EncryptionPort encryption = mock(EncryptionPort.class);
+    BulkReplayUseCase useCase;
+
+    static final UUID CONFIG_ID = UUID.randomUUID();
+    static final UUID CLUSTER_ID = UUID.randomUUID();
+    static final UUID USER_ID = UUID.randomUUID();
+
+    @BeforeEach
+    void setUp() {
+        useCase = new BulkReplayUseCase();
+        inject("producer", producer);
+        inject("messageRepo", messageRepo);
+        inject("configRepo", configRepo);
+        inject("clusterRepo", clusterRepo);
+        inject("notifier", notifier);
+        inject("auditRepo", auditRepo);
+        inject("encryption", encryption);
+        when(encryption.decrypt(anyString())).thenAnswer(i -> i.getArgument(0));
+        var config = DlqConfig.reconstitute(CONFIG_ID, CLUSTER_ID, "orders-dlq", "Orders DLQ",
+            FetchConfig.onDemand(100), RetentionPolicy.maxCount(1000), null, null, null);
+        when(configRepo.findById(CONFIG_ID)).thenReturn(Optional.of(config));
+        when(clusterRepo.findById(CLUSTER_ID)).thenReturn(Optional.of(
+            KafkaCluster.reconstitute(CLUSTER_ID, "c", "localhost:9092", KafkaSecurityConfig.plaintext(), null)));
+    }
+
+    private DlqMessage msg(Map<String, String> headers) {
+        var m = DlqMessage.reconstitute(UUID.randomUUID(), CONFIG_ID, 0, 0L, Instant.now(),
+            null, new byte[]{1}, null, null, headers, MessageStatus.NEW, false, Instant.now(), null, null);
+        when(messageRepo.findById(m.getId())).thenReturn(Optional.of(m));
+        return m;
+    }
+
+    @Test
+    void messagesWithoutTopicHeaderCountAsFailedButDoNotAbortTheBatch() {
+        var withHeader = msg(Map.of("x-original-topic", "orders"));
+        var without = msg(Map.of());
+        var result = useCase.bulkReplay(CONFIG_ID, List.of(without.getId(), withHeader.getId()), USER_ID);
+        assertThat(result.succeeded()).isEqualTo(1);
+        assertThat(result.failed()).isEqualTo(1);
+        assertThat(without.getStatus()).isEqualTo(MessageStatus.NEW);
+    }
+
+    @Test
+    void targetTopicOverrideReplaysMessagesLackingTheHeader() {
+        var a = msg(Map.of());
+        var b = msg(Map.of("unrelated", "x"));
+        var result = useCase.bulkReplay(CONFIG_ID, List.of(a.getId(), b.getId()), USER_ID, "orders-manual");
+        assertThat(result.succeeded()).isEqualTo(2);
+        assertThat(result.failed()).isZero();
+        verify(producer, times(2)).publish(any(), any(), eq("orders-manual"), any(), any(), any());
+    }
+
+    @Test
+    void blankOverrideIsTreatedAsAbsent() {
+        var a = msg(Map.of());
+        var result = useCase.bulkReplay(CONFIG_ID, List.of(a.getId()), USER_ID, "  ");
+        assertThat(result.failed()).isEqualTo(1);
+        verifyNoInteractions(producer);
+    }
+
+    private void inject(String field, Object value) {
+        try {
+            var f = BulkReplayUseCase.class.getDeclaredField(field);
+            f.setAccessible(true);
+            f.set(useCase, value);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+}
+```
+
 - [ ] **Step 2: Run, verify FAIL**
 
-Run: `cd backend && ./gradlew test --tests 'it.dls.application.replay.ReplayTopicResolverTest' --tests 'it.dls.application.fetch.FetchMessagesUseCaseTest'` → FAIL (compile/behaviour).
+Run: `cd backend && ./gradlew test --tests 'it.dls.application.replay.*' --tests 'it.dls.application.fetch.FetchMessagesUseCaseTest'` → FAIL (compile/behaviour).
 
 - [ ] **Step 3: Implement**
 
@@ -950,6 +1103,27 @@ public class ReplayTopicResolver {
 }
 ```
 `ReplayTopicNotResolvableException`: change message to `"...: no wizard override, no config default, and no original-topic header found via the DLQ's header mapping"`.
+
+`BulkReplayUseCase`: keep the 3-arg `bulkReplay` as a delegating overload and add the override:
+```java
+    @Transactional
+    public BulkReplayResult bulkReplay(UUID dlqConfigId, List<UUID> messageIds, UUID replayedBy) {
+        return bulkReplay(dlqConfigId, messageIds, replayedBy, null);
+    }
+
+    @Transactional
+    public BulkReplayResult bulkReplay(UUID dlqConfigId, List<UUID> messageIds, UUID replayedBy,
+                                       String targetTopicOverride) {
+        // body unchanged, except: pass targetTopicOverride to replayOne(...)
+    }
+```
+(Move the existing body into the 4-arg method; do not annotate the delegating overload twice if CDI complains — one `@Transactional` on the 4-arg method is enough.) Change `replayOne(...)` to take `String targetTopicOverride` and call `topicResolver.resolve(msg, config, targetTopicOverride)` instead of `resolve(msg, config, null)`. `ReplayTopicResolver` already treats blank overrides as absent.
+
+`BulkReplayRequest.java`:
+```java
+public record BulkReplayRequest(List<UUID> messageIds, String targetTopicOverride) {}
+```
+`bulkDiscard` / `bulkMarkUnderReview` in `DlqConfigMessagesResource` also take `BulkReplayRequest`; they ignore the new field (Jackson tolerates its absence → `null`). Fix any other constructor call sites (`grep -rn "BulkReplayRequest(" backend/src`). In `DlqConfigMessagesResource.bulkReplay` change the call to `bulkReplay.bulkReplay(configId, req.messageIds(), currentUserId(), req.targetTopicOverride())`.
 
 - [ ] **Step 4: Run, verify PASS**; then full suite `cd backend && ./gradlew test` (existing `Map.of()` raw headers still compile; existing replay tests rely on LEGACY default).
 
@@ -1664,7 +1838,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Test: `frontend/e2e/messages/failure-info.spec.ts` (new); update mocks in `e2e/replay/bulk-replay-ui.spec.ts`, `replay-wizard.spec.ts`, `bulk-replay.spec.ts`, `payload-validation.spec.ts`, `replay-failed.spec.ts` to add `failureInfo`.
 
 **Interfaces:**
-- Consumes: `failureInfo` on message JSON (Task 6)
+- Consumes: `failureInfo` on message JSON (Task 6); `targetTopicOverride` on `POST /api/dlq-configs/{id}/messages/bulk-replay` (Task 4)
 - Produces: exported-by-convention interface `FailureInfo { originalTopic: string|null; originalPartition: number|null; originalOffset: number|null; originalTimestamp: string|null; exceptionMessage: string|null; exceptionStacktrace: string|null }` declared in each page (types co-located per project convention).
 
 - [ ] **Step 1: Failing E2E** `e2e/messages/failure-info.spec.ts`
@@ -1747,11 +1921,77 @@ Add to the tabs array (next to the `headers` entry, same shape) `...(hasFailureI
 
 - [ ] **Step 4: Implement `MessageListPage.tsx`**
 
-Add `failureInfo?: { originalTopic: string | null }` to the message interface (~line 20) and change lines 168-169 to
+Add `failureInfo?: { originalTopic: string | null }` to the message interface (~line 20). Missing headers must not block the user, so replace `canBulkReplay` (lines 168-169) with a hint flag, and add an optional bulk target topic:
 ```tsx
-  const canBulkReplay = configData?.defaultReplayTopic != null ||
-    selectedMessages.some(m => !!m.failureInfo?.originalTopic)
+  const [bulkTopicOverride, setBulkTopicOverride] = useState('')
+  const noTopicKnown = !bulkTopicOverride.trim() && configData?.defaultReplayTopic == null &&
+    selectedMessages.length > 0 && !selectedMessages.some(m => !!m.failureInfo?.originalTopic)
 ```
+(`useState` is already imported in this file; place the hook with the other `useState`s, before any conditional return.) In `bulkReplayMutation` change the body to
+```tsx
+      { method: 'POST', body: JSON.stringify({
+          messageIds: [...selectedIds],
+          targetTopicOverride: bulkTopicOverride.trim() || undefined,
+        }) }
+```
+and in `onSuccess` also `setBulkTopicOverride('')`. In the JSX, immediately before the `Under Review` button inside the selection toolbar fragment add
+```tsx
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <input
+                    data-testid="bulk-topic-override"
+                    className="input"
+                    placeholder="Target topic (optional)"
+                    value={bulkTopicOverride}
+                    onChange={(e) => setBulkTopicOverride(e.target.value)}
+                    style={{ height: 32, width: 220 }}
+                  />
+                  {noTopicKnown && (
+                    <span data-testid="bulk-no-topic-hint" style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
+                      No replay topic found for the selection. Enter one, or these messages will be skipped.
+                    </span>
+                  )}
+                </div>
+```
+and change the Replay button to `disabled={bulkReplayMutation.isPending || bulkDiscardMutation.isPending || bulkUnderReviewMutation.isPending}` with no `title` about a missing topic (delete the `title={!canBulkReplay ...}` prop).
+
+- [ ] **Step 4b: Update and extend `e2e/replay/bulk-replay-ui.spec.ts`**
+
+Rewrite the BULK-003 "disabled" test (lines ~58-72) so it asserts the new behavior, and add an override test (reuse the file's `CONFIG_ID`, `configNoTopic`, `makeMessages`):
+```ts
+// BULK-003 (revised): no topic known → button still enabled, hint shown, user can type a topic
+test('Replay button stays enabled and shows a hint when no replay topic can be inferred', async ({ page }) => {
+  await page.route(`/api/dlq-configs/${CONFIG_ID}`, (route) => route.fulfill({ json: configNoTopic }))
+  await page.route(`/api/dlq-configs/${CONFIG_ID}/messages*`, (route) =>
+    route.fulfill({ json: { messages: makeMessages(2, { headers: {} }), total: 2, page: 0, size: 20 } })
+  )
+  await page.goto(`/dlq-configs/${CONFIG_ID}/messages`)
+  await page.getByTestId('message-row').getByRole('checkbox').first().check()
+
+  await expect(page.getByRole('button', { name: /Replay \(1 selected\)/ })).toBeEnabled()
+  await expect(page.getByTestId('bulk-no-topic-hint')).toBeVisible()
+})
+
+// BULK-007: user-supplied target topic is sent with the bulk replay request
+test('bulk replay sends targetTopicOverride when the user enters a topic', async ({ page }) => {
+  await page.route(`/api/dlq-configs/${CONFIG_ID}`, (route) => route.fulfill({ json: configNoTopic }))
+  await page.route(`/api/dlq-configs/${CONFIG_ID}/messages*`, (route) =>
+    route.fulfill({ json: { messages: makeMessages(2, { headers: {} }), total: 2, page: 0, size: 20 } })
+  )
+  let sent = ''
+  await page.route(`/api/dlq-configs/${CONFIG_ID}/messages/bulk-replay`, async (route) => {
+    sent = route.request().postData() ?? ''
+    await route.fulfill({ json: { succeeded: 1, failed: 0 } })
+  })
+  await page.goto(`/dlq-configs/${CONFIG_ID}/messages`)
+  await page.getByTestId('message-row').getByRole('checkbox').first().check()
+  await page.getByTestId('bulk-topic-override').fill('orders-manual')
+  await expect(page.getByTestId('bulk-no-topic-hint')).toHaveCount(0)
+  await page.getByRole('button', { name: /Replay \(1 selected\)/ }).click()
+  await expect.poll(() => sent).not.toBe('')
+  expect(JSON.parse(sent)).toMatchObject({ targetTopicOverride: 'orders-manual' })
+})
+```
+Keep the existing "enabled case" test but change its fixture to carry `failureInfo.originalTopic` (done in Step 5). Check whether `bulk-replay.spec.ts` asserts the old disabled behavior or `title='No replay topic configured'` (`grep -rn "No replay topic configured" frontend/e2e`) and update it likewise.
 
 - [ ] **Step 5: Update existing replay specs' fixtures**
 
@@ -1781,7 +2021,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
   - Replay Topic item 2: "Value of the original-topic header, as named by the DLQ Config's *Header Mapping*".
   - Add new entries (alphabetical): **Header Mapping** — "Per-DLQ-Config declaration of which Kafka header holds each failure attribute (original topic, partition, offset, timestamp, exception message, stacktrace) and how binary values are encoded (STRING, INT32, INT64)." **Header Preset** — "Predefined Header Mapping: LEGACY (`x-original-topic`), SPRING (`kafka_dlt-*`), QUARKUS_SMALLRYE (`dead-letter-*`), or CUSTOM (user-defined)." **Failure Info** — "Normalized view of a Message's failure attributes, derived from its stored Headers through the Header Mapping."
 - [ ] **Step 2: `DOMAIN.md`** — add rows to the DlqConfig table: `headerPreset` (`HeaderPreset`, default LEGACY) and `headerMapping` (`HeaderMapping`, six optional `HeaderField{name, encoding}`); add a `### HeaderMapping (Value Object)` section; add `FailureInfo` as a derived read model on DlqMessage.
-- [ ] **Step 3: `EVALUATION.md`** — add a section "Header Mapping" with EARS requirements and IDs used in tests: **[HDR-001]** The system shall default new DLQ Configs to the LEGACY Header Preset. **[HDR-002]** When an ADMIN selects a non-custom Header Preset, the system shall apply that preset's mapping and show its header names read-only. **[HDR-003]** Where the CUSTOM preset is selected, the system shall allow editing each header name and permitted encoding. **[HDR-004]** The system shall display the stored preset and mapping when editing a DLQ Config. **[HDR-005]** When a Message's DLQ Config maps failure headers present on the Message, the system shall show them in a Failure view. **[HDR-006]** The system shall resolve the Replay Topic from the header named by the DLQ Config's Header Mapping. **[HDR-007]** If a Message has no mapped failure data, the system shall not show the Failure view. **[HDR-008]** When ingesting a header mapped as INT32/INT64, the system shall store its decimal value; if the byte length is invalid, the system shall store it Base64-encoded and report the field as unknown. **[HDR-009]** If a CUSTOM mapping has a blank header name or an encoding not permitted for the field, then the system shall reject the request with HTTP 400.
+- [ ] **Step 3: `EVALUATION.md`** — add a section "Header Mapping" with EARS requirements and IDs used in tests: **[HDR-001]** The system shall default new DLQ Configs to the LEGACY Header Preset. **[HDR-002]** When an ADMIN selects a non-custom Header Preset, the system shall apply that preset's mapping and show its header names read-only. **[HDR-003]** Where the CUSTOM preset is selected, the system shall allow editing each header name and permitted encoding. **[HDR-004]** The system shall display the stored preset and mapping when editing a DLQ Config. **[HDR-005]** When a Message's DLQ Config maps failure headers present on the Message, the system shall show them in a Failure view. **[HDR-006]** The system shall resolve the Replay Topic from the header named by the DLQ Config's Header Mapping. **[HDR-007]** If a Message has no mapped failure data, the system shall not show the Failure view. **[HDR-008]** When ingesting a header mapped as INT32/INT64, the system shall store its decimal value; if the byte length is invalid, the system shall store it Base64-encoded and report the field as unknown. **[HDR-010]** If no Replay Topic can be derived from the Header Mapping or DLQ Config, then the system shall still allow the user to start a single or bulk Replay by supplying the target topic, and shall not block ingestion or message viewing. **[HDR-009]** If a CUSTOM mapping has a blank header name or an encoding not permitted for the field, then the system shall reject the request with HTTP 400.
 - [ ] **Step 4: `CLAUDE.md`** — add to Codebase Conventions: "**Header mapping:** `DlqConfig.headerMapping` (preset LEGACY/SPRING/QUARKUS_SMALLRYE/CUSTOM) names the failure headers; never hardcode `x-original-topic`. Ingestion decodes binary headers with `HeaderDecoder`; reads go through `FailureInfoExtractor`/`FailureInfoAssembler` (`failureInfo` on message JSON)." Add `| V10 | header_preset + header_mapping on dlq_configs |` to the Flyway table.
 - [ ] **Step 5: Commit**
 
@@ -1800,7 +2040,7 @@ Run `cd backend && ./gradlew test` and `cd frontend && npm run build && npx play
 
 ## Self-Review
 
-**Spec coverage:** domain (T1), presets (T1), persistence/V10 + LEGACY backfill (T3), ingestion decode + base64 fallback (T2, T4), extractor (T1), replay resolver (T4), API config fields/validation (T5), `failureInfo` in message API (T6), frontend forms (T7), Failure panel + list/detail topic (T8), docs (T9). Out-of-scope items (per-message override, DB presets, raw bytes retention, re-extraction) intentionally absent.
+**Spec coverage (plus user requirement: missing headers never block the user; topic can always be supplied — single wizard existing, bulk override in T4/T8):** domain (T1), presets (T1), persistence/V10 + LEGACY backfill (T3), ingestion decode + base64 fallback (T2, T4), extractor (T1), replay resolver (T4), API config fields/validation (T5), `failureInfo` in message API (T6), frontend forms (T7), Failure panel + list/detail topic (T8), docs (T9). Out-of-scope items (per-message override, DB presets, raw bytes retention, re-extraction) intentionally absent.
 
 **Placeholder scan:** IT test bodies in Task 5/6 are specified by request/expected-response and must be written out following `ClusterResourceIT`; Task 8 spec reuses an existing spec's fixture — the executor must read it. No TBD left.
 
