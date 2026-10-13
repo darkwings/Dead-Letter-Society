@@ -79,4 +79,25 @@ class MessageRepositoryAdapterIT {
         long count = DlqMessageEntity.count("dlqConfigId", configId);
         assertThat(count).isEqualTo(3);
     }
+
+    @Test
+    @TestTransaction
+    void countByConfigAndStatus_groupsPerConfigAndStatus() {
+        var configA = savedConfigId();
+        var configB = savedConfigId();
+        messageRepo.save(message(configA, 0, 0L));
+        messageRepo.save(message(configA, 0, 1L));
+        var replayed = message(configA, 0, 2L);
+        replayed.transitionTo(it.dls.domain.message.MessageStatus.REPLAYED);
+        messageRepo.save(replayed);
+        messageRepo.save(message(configB, 0, 0L));
+
+        var counts = messageRepo.countByConfigAndStatus();
+
+        assertThat(counts.get(configA)).containsOnly(
+            entry(it.dls.domain.message.MessageStatus.NEW, 2L),
+            entry(it.dls.domain.message.MessageStatus.REPLAYED, 1L));
+        assertThat(counts.get(configB)).containsOnly(
+            entry(it.dls.domain.message.MessageStatus.NEW, 1L));
+    }
 }

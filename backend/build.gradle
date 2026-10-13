@@ -22,6 +22,7 @@ dependencies {
     implementation 'io.quarkus:quarkus-smallrye-openapi'
     implementation 'io.quarkus:quarkus-rest-client-jackson'
     implementation 'io.quarkus:quarkus-messaging-kafka'
+    implementation 'io.quarkus:quarkus-micrometer-registry-prometheus'
     implementation('io.confluent:kafka-schema-registry-client:7.8.0') {
         exclude group: 'org.apache.kafka', module: 'kafka-clients'
     }
