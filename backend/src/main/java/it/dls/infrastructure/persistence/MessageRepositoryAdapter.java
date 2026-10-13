@@ -121,6 +121,20 @@ public class MessageRepositoryAdapter implements MessageRepository {
 
     @Override
     @Transactional(Transactional.TxType.SUPPORTS)
+    public Map<UUID, Map<MessageStatus, Long>> countByConfigAndStatus() {
+        List<Object[]> rows = em.createQuery(
+            "SELECT m.dlqConfigId, m.status, COUNT(m) FROM DlqMessageEntity m GROUP BY m.dlqConfigId, m.status",
+            Object[].class).getResultList();
+        Map<UUID, Map<MessageStatus, Long>> result = new HashMap<>();
+        for (Object[] row : rows) {
+            result.computeIfAbsent((UUID) row[0], k -> new EnumMap<>(MessageStatus.class))
+                .put((MessageStatus) row[1], (Long) row[2]);
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(Transactional.TxType.SUPPORTS)
     public List<SparklinePoint> getSparklineData(int days) {
         Instant cutoff = LocalDate.now(ZoneOffset.UTC).minusDays(days - 1)
             .atStartOfDay().toInstant(ZoneOffset.UTC);
