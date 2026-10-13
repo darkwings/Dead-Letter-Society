@@ -106,10 +106,10 @@ public class KafkaConsumerAdapter implements KafkaConsumerPort {
                     int count = countPerPartition.getOrDefault(partition, 0);
                     if (count >= maxMessages) continue;
 
-                    var headers = new HashMap<String, String>();
+                    var headers = new HashMap<String, byte[]>();
                     for (var h : record.headers()) {
                         if (h.value() != null) {
-                            headers.put(h.key(), new String(h.value()));
+                            headers.put(h.key(), h.value());
                         }
                     }
 

@@ -65,7 +65,7 @@ public class DlqConfigMessagesResource {
             return ProblemDetail.badRequest("messageIds must not be empty").toResponse();
         }
         try {
-            var result = bulkReplay.bulkReplay(configId, req.messageIds(), currentUserId());
+            var result = bulkReplay.bulkReplay(configId, req.messageIds(), currentUserId(), req.targetTopicOverride());
             return Response.ok(result).build();
         } catch (IllegalArgumentException e) {
             return ProblemDetail.notFound(e.getMessage()).toResponse();

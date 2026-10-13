@@ -9,5 +9,5 @@ public record RawKafkaMessage(
     Instant timestamp,
     byte[] key,
     byte[] value,
-    Map<String, String> headers
+    Map<String, byte[]> headers
 ) {}
