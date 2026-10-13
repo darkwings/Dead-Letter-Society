@@ -18,6 +18,7 @@ const makeMessages = (count: number) =>
     ingestedAt: new Date().toISOString(),
     decodedPayload: null,
     headers: { 'x-original-topic': 'orders' },
+    failureInfo: { originalTopic: 'orders', originalPartition: null, originalOffset: null, originalTimestamp: null, exceptionMessage: null, exceptionStacktrace: null },
   }))
 
 test.beforeEach(async ({ page }) => {

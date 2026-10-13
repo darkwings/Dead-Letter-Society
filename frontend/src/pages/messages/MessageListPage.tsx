@@ -18,6 +18,7 @@ interface MessageSummary {
   ingestedAt: string
   decodedPayload: unknown | null
   headers: Record<string, string>
+  failureInfo?: { originalTopic: string | null }
 }
 
 interface MessagePageResponse {
@@ -165,18 +166,23 @@ export default function MessageListPage() {
   }
 
   const selectedMessages = messages.filter(m => selectedIds.has(m.id))
-  const canBulkReplay = configData?.defaultReplayTopic != null ||
-    selectedMessages.some(m => m.headers?.['x-original-topic'])
+  const [bulkTopicOverride, setBulkTopicOverride] = useState('')
+  const noTopicKnown = !bulkTopicOverride.trim() && configData?.defaultReplayTopic == null &&
+    selectedMessages.length > 0 && !selectedMessages.some(m => !!m.failureInfo?.originalTopic)
 
   const bulkReplayMutation = useMutation({
     mutationFn: () => apiFetch<{ succeeded: number; failed: number }>(
       `/api/dlq-configs/${configId}/messages/bulk-replay`,
-      { method: 'POST', body: JSON.stringify({ messageIds: [...selectedIds] }) }
+      { method: 'POST', body: JSON.stringify({
+        messageIds: [...selectedIds],
+        targetTopicOverride: bulkTopicOverride.trim() || undefined,
+      }) }
     ),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['messages', configId] })
       queryClient.invalidateQueries({ queryKey: ['dlq-badge', configId] })
       setSelectedIds(new Set())
+      setBulkTopicOverride('')
       if (result.failed === 0) {
         toast.success(`${result.succeeded} message${result.succeeded !== 1 ? 's' : ''} replayed`)
       } else {
@@ -366,6 +372,21 @@ export default function MessageListPage() {
             )}
             {isOperator && selectedIds.size > 0 && (
               <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <input
+                    data-testid="bulk-topic-override"
+                    className="input"
+                    placeholder="Target topic (optional)"
+                    value={bulkTopicOverride}
+                    onChange={(e) => setBulkTopicOverride(e.target.value)}
+                    style={{ height: 32, width: 220 }}
+                  />
+                  {noTopicKnown && (
+                    <span data-testid="bulk-no-topic-hint" style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
+                      No replay topic found for the selection. Enter one, or these messages will be skipped.
+                    </span>
+                  )}
+                </div>
                 <button
                   className="btn btn-secondary"
                   disabled={bulkUnderReviewMutation.isPending || bulkDiscardMutation.isPending || bulkReplayMutation.isPending}
@@ -382,9 +403,8 @@ export default function MessageListPage() {
                 </button>
                 <button
                   className="btn btn-primary"
-                  disabled={!canBulkReplay || bulkReplayMutation.isPending || bulkDiscardMutation.isPending || bulkUnderReviewMutation.isPending}
+                  disabled={bulkReplayMutation.isPending || bulkDiscardMutation.isPending || bulkUnderReviewMutation.isPending}
                   onClick={() => bulkReplayMutation.mutate()}
-                  title={!canBulkReplay ? 'No replay topic configured' : undefined}
                 >
                   {bulkReplayMutation.isPending ? 'Replaying…' : `Replay (${selectedIds.size} selected)`}
                 </button>
