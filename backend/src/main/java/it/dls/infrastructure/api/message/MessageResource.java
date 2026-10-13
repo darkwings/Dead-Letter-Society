@@ -1,5 +1,6 @@
 package it.dls.infrastructure.api.message;
 
+import it.dls.application.inspection.FailureInfoAssembler;
 import it.dls.application.inspection.InspectMessagesUseCase;
 import it.dls.domain.message.MessageStatus;
 import it.dls.infrastructure.api.ProblemDetail;
@@ -19,13 +20,14 @@ import java.util.UUID;
 public class MessageResource {
 
     @Inject InspectMessagesUseCase inspectMessages;
+    @Inject FailureInfoAssembler failureInfoAssembler;
     @Inject JsonWebToken jwt;
 
     @GET
     public Response getMessage(@PathParam("messageId") UUID messageId) {
         try {
             var msg = inspectMessages.getMessage(messageId, currentUserId(), isAdmin());
-            return Response.ok(MessageResponse.from(msg)).build();
+            return Response.ok(MessageResponse.from(msg, failureInfoAssembler.assembleAll(java.util.List.of(msg)).get(msg.getId()))).build();
         } catch (IllegalArgumentException e) {
             return ProblemDetail.notFound(e.getMessage()).toResponse();
         } catch (SecurityException e) {
@@ -50,7 +52,7 @@ public class MessageResource {
         }
         try {
             var updated = inspectMessages.updateStatus(messageId, newStatus, currentUserId(), isAdmin());
-            return Response.ok(MessageResponse.from(updated)).build();
+            return Response.ok(MessageResponse.from(updated, failureInfoAssembler.assembleAll(java.util.List.of(updated)).get(updated.getId()))).build();
         } catch (IllegalArgumentException e) {
             return ProblemDetail.notFound(e.getMessage()).toResponse();
         } catch (SecurityException e) {
