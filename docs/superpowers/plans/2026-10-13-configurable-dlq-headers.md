@@ -1835,7 +1835,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `frontend/src/pages/messages/MessageDetailPage.tsx` (interface at ~16-30, tabs ~118/204, `resolvedTopic` at 397), `frontend/src/pages/messages/MessageListPage.tsx` (interface ~20, `canBulkReplay` at 168-169)
-- Test: `frontend/e2e/messages/failure-info.spec.ts` (new); update mocks in `e2e/replay/bulk-replay-ui.spec.ts`, `replay-wizard.spec.ts`, `bulk-replay.spec.ts`, `payload-validation.spec.ts`, `replay-failed.spec.ts` to add `failureInfo`.
+- Test: `frontend/e2e/messages/failure-info.spec.ts` (new), `e2e/replay/bulk-replay-ui.spec.ts` (revise BULK-003, add BULK-007); update mocks in `e2e/replay/bulk-replay-ui.spec.ts`, `replay-wizard.spec.ts`, `bulk-replay.spec.ts`, `payload-validation.spec.ts`, `replay-failed.spec.ts` to add `failureInfo`.
 
 **Interfaces:**
 - Consumes: `failureInfo` on message JSON (Task 6); `targetTopicOverride` on `POST /api/dlq-configs/{id}/messages/bulk-replay` (Task 4)
