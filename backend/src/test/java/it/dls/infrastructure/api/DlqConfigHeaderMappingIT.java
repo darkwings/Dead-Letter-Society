@@ -2,10 +2,12 @@ package it.dls.infrastructure.api;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import it.dls.application.identity.PasswordHashPort;
 import it.dls.domain.cluster.KafkaCluster;
 import it.dls.domain.cluster.KafkaClusterRepository;
 import it.dls.domain.cluster.KafkaSecurityConfig;
-import it.dls.infrastructure.persistence.KafkaClusterEntity;
+import it.dls.domain.user.User;
+import it.dls.domain.user.UserRepository;
 import it.dls.infrastructure.persistence.UserEntity;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
@@ -26,20 +28,21 @@ class DlqConfigHeaderMappingIT {
 
     @Inject EntityManager em;
     @Inject KafkaClusterRepository clusterRepo;
+    @Inject UserRepository userRepo;
+    @Inject PasswordHashPort passwordHash;
 
     @BeforeEach
     @Transactional
     void clean() {
         em.createQuery("DELETE FROM KafkaClusterEntity").executeUpdate();
         UserEntity.delete("email", ADMIN_EMAIL);
+        // Created directly: POST /api/setup only works while no user exists, which other ITs break.
+        var admin = User.createLocal(ADMIN_EMAIL, "IT User", passwordHash.hash(ADMIN_PASS));
+        admin.promoteToAdmin();
+        userRepo.save(admin);
     }
 
     private String obtainAdminToken() {
-        given().contentType(ContentType.JSON)
-            .body("""
-                {"email":"%s","displayName":"IT User","password":"%s"}
-                """.formatted(ADMIN_EMAIL, ADMIN_PASS))
-            .post("/api/setup");
         return given().contentType(ContentType.JSON)
             .body("""
                 {"email":"%s","password":"%s"}
