@@ -36,7 +36,7 @@ Per-DLQ configurable header mapping, with presets (Spring, Quarkus SmallRye, Leg
 | SPRING | `kafka_dlt-original-topic` | `kafka_dlt-original-partition` (INT32) | `kafka_dlt-original-offset` (INT64) | `kafka_dlt-original-timestamp` (INT64) | `kafka_dlt-exception-message` | `kafka_dlt-exception-stacktrace` |
 | QUARKUS_SMALLRYE | `dead-letter-topic` | `dead-letter-partition` | `dead-letter-offset` | – | `dead-letter-reason` | `dead-letter-cause` |
 
-Names/encodings for SPRING and QUARKUS_SMALLRYE are verified against framework docs/source in the first implementation task (tests pin them).
+Names/encodings verified on 2026-10-13 against the Spring Kafka (`DeadLetterPublishingRecoverer`) and SmallRye Reactive Messaging (`dead-letter-queue` strategy) docs. SmallRye writes partition/offset as strings and has no timestamp header; Spring writes int32/int64 binary. Tests pin the values.
 
 `DlqConfig` gains `headerPreset` and `headerMapping` (non-null; default `LEGACY`).
 
