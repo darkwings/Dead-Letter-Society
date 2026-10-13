@@ -268,6 +268,39 @@ and remove the nginx proxy entirely.
 
 ---
 
+## Prometheus metrics
+
+The backend exposes Prometheus metrics at `GET /q/metrics` (JVM, HTTP and DLS metrics). The endpoint is **unauthenticated**, as scrapers usually are, and it exposes cluster and topic names. Restrict access at the network or ingress level.
+
+DLS gauge `dls_dlq_messages` reports the number of messages per DLQ config and status. All five statuses are always emitted, including zero:
+
+```
+dls_dlq_messages{dlq_config="Orders DLQ",topic="orders.dlq",cluster="prod",status="NEW"} 12
+dls_dlq_messages{dlq_config="Orders DLQ",topic="orders.dlq",cluster="prod",status="REPLAYED"} 0
+```
+
+Values come from DLS's own database (messages fetched so far), not from broker consumer-group lag. They refresh every `DLS_METRICS_REFRESH_INTERVAL`, so a scrape never queries the database.
+
+Scrape config:
+
+```yaml
+scrape_configs:
+  - job_name: dead-letter-society
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["backend:8080"]
+```
+
+Example alert:
+
+```yaml
+- alert: DlqMessagesPending
+  expr: sum by (topic) (dls_dlq_messages{status="NEW"}) > 100
+  for: 15m
+```
+
+---
+
 ## Environment variable reference
 
 | Variable               | Required     | Default     | Description |
@@ -284,3 +317,4 @@ and remove the nginx proxy entirely.
 | `OIDC_CLIENT_ID`       | OIDC only    | `dls`       | OIDC client ID |
 | `DLS_OIDC_ADMIN_CLAIM` | no           | `roles`     | JWT claim name checked for admin role |
 | `DLS_OIDC_ADMIN_VALUE` | no           | `dls-admin` | JWT claim value that grants admin access |
+| `DLS_METRICS_REFRESH_INTERVAL` | no  | `15s`       | How often the `dls_dlq_messages` gauge is refreshed from the database |

@@ -38,6 +38,8 @@ Frontend: React + Vite + TypeScript, TanStack Query, Zustand auth store, Tailwin
 
 **Schema Registry:** `SchemaRegistryPort.validate()` takes `int schemaId` (primitive). Cluster's SR is nullable; always null-check `cluster.getSchemaRegistry()` before use.
 
+**Metrics:** `DlqMessageMetrics` (infrastructure) publishes the `dls_dlq_messages` gauge at `/q/metrics`. Gauges read an in-memory snapshot refreshed on a schedule (`dls.metrics.refresh-interval`, set to `1h` in `%test`), never the DB on scrape. In ITs call `metrics.refresh()` explicitly.
+
 **Frontend API client:** Single `apiFetch<T>` in `src/lib/api.ts`. No generated OpenAPI client. Types are hand-written interfaces co-located with each page.
 
 ## Current Implementation Status

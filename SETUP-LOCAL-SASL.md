@@ -34,6 +34,10 @@ docker compose -f docker/docker-compose.sasl-test.yml up -d
 # Wait ~20s for kafka-init to complete (creates SCRAM users + topics).
 ```
 
+DLS itself still uses the PostgreSQL of the plaintext dev stack. If you recreate this stack, its topics are
+reset while DLS keeps the old messages and offsets, so new records can be skipped. Clear them first, see
+[Starting from an empty database](SETUP-LOCAL-PLAINTEXT.md#starting-from-an-empty-database).
+
 ## Scripts
 
 ### Create a topic
@@ -71,6 +75,11 @@ Registers two subjects: `orders.dlq-value` (DLQ) and `orders-value` (source topi
 The script auto-detects whether an Avro schema is registered for `<topic>-value` and switches
 between plain JSON and Confluent Avro wire format accordingly.
 Run `register-schema.sh` first to get Avro encoding.
+
+`--header` adds the SmallRye Reactive Messaging dead-letter headers: `dead-letter-exception-class-name`,
+`dead-letter-reason`, `dead-letter-topic`, `dead-letter-partition` and `dead-letter-offset`. About half of the
+messages also get `dead-letter-cause` and `dead-letter-cause-class-name`, as SmallRye only sets them when the
+failure has a cause. Headers are ignored in Avro mode. Arguments are positional: first the topic, then the count.
 
 ## Smoke tests
 
