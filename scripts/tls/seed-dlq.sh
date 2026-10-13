@@ -3,7 +3,8 @@
 # Plain JSON if no schema registered; Avro (Confluent wire format) if subject exists.
 #
 # Usage: ./scripts/tls/seed-dlq.sh [--header] [topic] [count]
-#   --header  — also emit SmallRye dead-letter-* headers (Quarkus framework style)
+#   --header  — also emit SmallRye dead-letter-* headers (exception-class-name, reason,
+#               topic, partition, offset; cause and cause-class-name on ~half of messages)
 #   topic     — default: orders.dlq
 #   count     — default: 20
 #
@@ -19,15 +20,19 @@ set -euo pipefail
 TOPIC="orders.dlq"
 COUNT=20
 FRAMEWORK_HEADERS=false
+POSITIONAL=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --header) FRAMEWORK_HEADERS=true; shift ;;
     -*) echo "Unknown option: $1"; exit 1 ;;
     *)
-      if [[ "$TOPIC" == "orders.dlq" ]]; then TOPIC="$1"
-      else COUNT="$1"
-      fi
+      POSITIONAL=$(( POSITIONAL + 1 ))
+      case "$POSITIONAL" in
+        1) TOPIC="$1" ;;
+        2) COUNT="$1" ;;
+        *) echo "Unexpected argument: $1"; exit 1 ;;
+      esac
       shift ;;
   esac
 done
@@ -89,6 +94,18 @@ EX_MESSAGES=(
   "Order with this idempotency key already processed"
   "Shipping address could not be resolved to a postal zone"
   "Order total exceeds maximum allowed per transaction"
+)
+CAUSE_CLASSES=(
+  "java.lang.NullPointerException"
+  "java.sql.SQLTransientConnectionException"
+  "java.util.concurrent.TimeoutException"
+  "com.fasterxml.jackson.core.JsonParseException"
+)
+CAUSE_MESSAGES=(
+  "Cannot invoke getShippingAddress() on null"
+  "Connection to orders-db timed out"
+  "Upstream call exceeded 5000 ms"
+  "Unexpected character at line 1 column 42"
 )
 SKUS=("LAPTOP-PRO-15" "MOUSE-WL-001" "KB-MECH-TKL" "MONITOR-4K-27" "HEADSET-USB-C"
       "WEBCAM-HD-1080" "DOCK-TB4" "SSD-1TB-NVME" "CHAIR-ERG-01" "DESK-ADJ-120")
@@ -161,11 +178,18 @@ for i in $(seq 1 "$COUNT"); do
 
   if [[ "$FRAMEWORK_HEADERS" == "true" ]]; then
     HEADERS="${HEADERS}\
+|dead-letter-exception-class-name:${EX_CLASS}\
 |dead-letter-reason:${EX_MSG}\
-|dead-letter-cause:${EX_CLASS}\
 |dead-letter-topic:${ORIG_TOPIC}\
 |dead-letter-partition:${ORIG_PARTITION}\
 |dead-letter-offset:${ORIG_OFFSET}"
+    # SmallRye only sets the cause headers when the failure carries a cause
+    if (( RANDOM % 2 )); then
+      CAUSE_IDX=$(( RANDOM % ${#CAUSE_CLASSES[@]} ))
+      HEADERS="${HEADERS}\
+|dead-letter-cause:${CAUSE_MESSAGES[$CAUSE_IDX]}\
+|dead-letter-cause-class-name:${CAUSE_CLASSES[$CAUSE_IDX]}"
+    fi
   fi
 
   HEADERS_CSV=$(echo "$HEADERS" | tr '|' ',')

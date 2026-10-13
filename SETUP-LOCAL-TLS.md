@@ -57,6 +57,10 @@ docker compose -f docker/docker-compose.tls-test.yml up -d
 # Wait ~20s for kafka-init to complete (creates SCRAM users + topics).
 ```
 
+DLS itself still uses the PostgreSQL of the plaintext dev stack. If you recreate this stack, its topics are
+reset while DLS keeps the old messages and offsets, so new records can be skipped. Clear them first, see
+[Starting from an empty database](SETUP-LOCAL-PLAINTEXT.md#starting-from-an-empty-database).
+
 ## Scripts
 
 ### Create a topic
@@ -94,6 +98,11 @@ Uses HTTPS with CA cert verification — no `-k` / insecure mode.
 
 Schema auto-detection queries SR via HTTPS from the host (`ca.crt` used for verification).
 Run `register-schema.sh` first to get Avro encoding.
+
+`--header` adds the SmallRye Reactive Messaging dead-letter headers: `dead-letter-exception-class-name`,
+`dead-letter-reason`, `dead-letter-topic`, `dead-letter-partition` and `dead-letter-offset`. About half of the
+messages also get `dead-letter-cause` and `dead-letter-cause-class-name`, as SmallRye only sets them when the
+failure has a cause. Headers are ignored in Avro mode. Arguments are positional: first the topic, then the count.
 
 ## Smoke tests
 

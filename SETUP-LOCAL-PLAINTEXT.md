@@ -26,6 +26,36 @@ docker compose -f docker/docker-compose.dev.yml up -d
 | `dls-dev-akhq`             | 8085 | AKHQ UI                      |
 | `dls-dev-db`               | 5432 | PostgreSQL                   |
 
+### Starting from an empty database
+
+For local testing it is fine, and often easiest, to start from scratch. Kafka has **no volume** (topics
+disappear when its container is recreated), while PostgreSQL keeps its data in the `db-data` volume.
+If the Kafka container is recreated but the DB is kept, DLS still holds the old messages and tracked offsets.
+Records published to the recreated topic can then be silently skipped, because DLS ignores a record whose
+`(partition, offset)` is already stored. Symptom: messages are published but never appear in DLS.
+(Tracked in [#6](https://github.com/darkwings/Dead-Letter-Society/issues/6).)
+
+Full reset (removes the DB and everything else in the stack):
+
+```bash
+docker compose -f docker/docker-compose.dev.yml down -v
+docker compose -f docker/docker-compose.dev.yml up -d
+```
+
+Then restart the backend (Flyway recreates the schema), create the admin account again at
+`http://localhost:5173/setup`, and re-add the cluster and DLQ configs
+(see [Configure DLS for the local dev cluster](#configure-dls-for-the-local-dev-cluster)).
+
+Reset only the fetched messages, keeping users, clusters and DLQ configs and without restarting the backend:
+
+```bash
+docker exec dls-dev-db psql -U dls -d dls \
+  -c "truncate dlq_messages, dlq_partition_offsets cascade"
+```
+
+This also deletes notes and replay audit records (foreign keys cascade). The next fetch re-reads the topic
+from the beginning.
+
 ## Start the backend
 
 ```bash
@@ -100,6 +130,11 @@ Registers `orders.dlq-value` (DLQ) and `orders-value` (source topic) in Schema R
 
 Auto-detects whether a schema exists for `<topic>-value` and switches between plain JSON and
 Confluent Avro wire format accordingly. Run `register-schema.sh` first to get Avro encoding.
+
+`--header` adds the SmallRye Reactive Messaging dead-letter headers: `dead-letter-exception-class-name`,
+`dead-letter-reason`, `dead-letter-topic`, `dead-letter-partition` and `dead-letter-offset`. About half of the
+messages also get `dead-letter-cause` and `dead-letter-cause-class-name`, as SmallRye only sets them when the
+failure has a cause. Headers are ignored in Avro mode. Arguments are positional: first the topic, then the count.
 
 ---
 
@@ -201,3 +236,6 @@ When creating a cluster in DLS:
 ```bash
 docker compose -f docker/docker-compose.dev.yml down -v
 ```
+
+`-v` also removes the PostgreSQL volume, so the next start has an empty database
+(see [Starting from an empty database](#starting-from-an-empty-database)).
