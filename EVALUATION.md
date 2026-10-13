@@ -120,6 +120,30 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 
 ---
 
+## 3c. Header Mapping
+
+**[HDR-001]** The system shall default new DLQ Configs to the LEGACY Header Preset.
+
+**[HDR-002]** When an ADMIN selects a non-custom Header Preset, the system shall apply that preset's mapping and show its header names read-only.
+
+**[HDR-003]** Where the CUSTOM Header Preset is selected, the system shall allow editing each header name and, where permitted, its encoding.
+
+**[HDR-004]** The system shall display the stored Header Preset and mapping when editing a DLQ Config.
+
+**[HDR-005]** When a Message's DLQ Config maps failure headers present on the Message, the system shall show them in a Failure view of the Message detail.
+
+**[HDR-006]** The system shall resolve the Replay Topic from the header named by the DLQ Config's Header Mapping.
+
+**[HDR-007]** If a Message has no mapped failure data, then the system shall not show the Failure view and shall still allow Replay with a user-supplied topic.
+
+**[HDR-008]** When ingesting a header mapped as INT32 or INT64, the system shall store its decimal value; if the byte length is invalid, the system shall store it Base64-encoded and report the corresponding Failure Info field as unknown.
+
+**[HDR-009]** If a CUSTOM mapping has a blank header name or an encoding not permitted for the field, or CUSTOM is chosen without a mapping, then the system shall reject the request with HTTP 400.
+
+**[HDR-010]** If no Replay Topic can be derived from the Header Mapping or DLQ Config, then the system shall still allow the user to start a single or bulk Replay by supplying the target topic, and shall not block ingestion or message viewing.
+
+---
+
 ## 4. Fetch (Message Ingestion)
 
 **[FETCH-001]** The system shall manage the Committed Offset for each (DLQ Config × Partition) pair within its own database, without committing offsets to the Kafka broker.
@@ -220,9 +244,9 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 
 **[BULK-002]** When ≥1 Messages are selected in the Message List, the system shall display a "Replay (N selected)" button showing the count of selected messages.
 
-**[BULK-003]** The system shall disable the "Replay (N selected)" button when none of the selected Messages have a resolvable Replay Topic (no Default Replay Topic on the DLQ Config and no `x-original-topic` header on any selected message).
+**[BULK-003]** While none of the selected Messages has a resolvable Replay Topic (no Default Replay Topic on the DLQ Config and no original-topic header per the Header Mapping) and no target topic has been entered, the system shall keep the "Replay (N selected)" button enabled and show a hint asking for a target topic.
 
-**[BULK-004]** When the user confirms a Bulk Replay, the system shall replay all selected Messages to the Default Replay Topic of the DLQ Config without displaying the Replay Wizard and without payload editing.
+**[BULK-004]** When the user confirms a Bulk Replay, the system shall replay all selected Messages, without displaying the Replay Wizard and without payload editing, to the target topic entered by the user if any, otherwise to the Default Replay Topic of the DLQ Config, otherwise to the topic named by each Message's original-topic header. A Message with no resolvable topic is counted as failed and left unchanged, without aborting the batch.
 
 **[BULK-005]** The system shall produce one immutable Replay Audit Record per Message in a Bulk Replay, each recording `replayedBy` (performing user ID).
 
@@ -384,6 +408,9 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 | RETENTION-001, RETENTION-002 | Retention job | PostgreSQL |
 | TOPIC-001 ~ TOPIC-003 | Topic Browser: filtra interni + già configurati + ordine | Kafka |
 | DLQCFG-006 ~ DLQCFG-010 | Edit DLQ Config: aggiorna campi, immutabilità topicName, validazione | PostgreSQL |
+| HDR-002, HDR-009 | Header preset/mapping su DLQ Config: create/update/GET, 400 su mapping non valido, `GET /api/header-presets` | `DlqConfigHeaderMappingIT` |
+| HDR-001, HDR-004 | Round-trip JSONB del mapping, backfill LEGACY | `DlqConfigRepositoryAdapterIT` |
+| HDR-005, HDR-010 | `failureInfo` su dettaglio e liste messaggi, tutto null senza header | `MessageFailureInfoIT` |
 | API-001 ~ API-006 | Tutti gli endpoint restituiscono problem+json per ogni categoria di errore | PostgreSQL |
 | SEC-001, SEC-002 | Encryption at rest | PostgreSQL |
 
@@ -412,7 +439,10 @@ Terminologia: → `TERMS.md`. Modello di dominio: → `DOMAIN.md`.
 | MSG-003 | Payload preview column: primi 80 chars troncati | `e2e/messages/message-list-columns.spec.ts` |
 | MSG-004, MSG-008 | Dettaglio messaggio: payload JSON + headers + audit + 4-col metadata grid | `e2e/messages/message-detail.spec.ts` |
 | MSG-007 | Filter panel è side panel sx (non inline bar) | `e2e/messages/filter-panel-layout.spec.ts` |
-| BULK-001 ~ BULK-003 | Selezione messaggi → pulsante "Replay (N)" → disabilitato senza topic | `e2e/replay/bulk-replay-ui.spec.ts` |
+| BULK-001 ~ BULK-003 | Selezione messaggi → pulsante "Replay (N)" → abilitato anche senza topic, con hint | `e2e/replay/bulk-replay-ui.spec.ts` |
+| BULK-004 (override) | Bulk replay invia `targetTopicOverride` inserito dall'utente | `e2e/replay/bulk-replay-ui.spec.ts` |
+| HDR-001 ~ HDR-004 | Form DLQ Config: preset header, campi read-only/editabili, edit carica il preset | `e2e/dlqconfig/header-mapping.spec.ts` |
+| HDR-005 ~ HDR-007 | Tab Failure nel dettaglio messaggio; topic replay da `failureInfo`; wizard editabile senza dati | `e2e/messages/failure-info.spec.ts` |
 | BULK-004, BULK-007 | Bulk replay → audit records + toast summary N ok / N falliti | `e2e/replay/bulk-replay.spec.ts` |
 | ALLMSG-002 ~ ALLMSG-005 | "All Messages": filtro status, colonne Cluster+DLQ, link a detail | `e2e/messages/all-messages.spec.ts` |
 | SIDEBAR-002 ~ SIDEBAR-004 | Badge count NEW per DLQ, dot muted se zero, aggiorna via SSE | `e2e/sidebar/sidebar-badge.spec.ts` |
