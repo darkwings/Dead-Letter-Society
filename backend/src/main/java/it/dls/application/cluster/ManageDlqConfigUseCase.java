@@ -38,6 +38,7 @@ public class ManageDlqConfigUseCase {
         };
         var config = DlqConfig.create(clusterId, cmd.topicName(), cmd.displayName(),
             fetchConfig, retentionPolicy, cmd.schemaRegistryId());
+        if (cmd.headerPreset() != null) config.changeHeaderMapping(cmd.headerPreset(), cmd.headerMapping());
         dlqConfigRepo.save(config);
         return config;
     }
@@ -72,6 +73,7 @@ public class ManageDlqConfigUseCase {
         };
         config.update(cmd.displayName(), fetchConfig, retentionPolicy,
             cmd.schemaRegistryId(), cmd.defaultReplayTopic());
+        if (cmd.headerPreset() != null) config.changeHeaderMapping(cmd.headerPreset(), cmd.headerMapping());
         dlqConfigRepo.save(config);
         return config;
     }

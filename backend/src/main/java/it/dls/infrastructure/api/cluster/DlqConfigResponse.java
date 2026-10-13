@@ -3,6 +3,8 @@ package it.dls.infrastructure.api.cluster;
 import it.dls.domain.dlqconfig.DlqConfig;
 import it.dls.domain.dlqconfig.DlqRole;
 import it.dls.domain.dlqconfig.DownloadMode;
+import it.dls.domain.dlqconfig.HeaderMapping;
+import it.dls.domain.dlqconfig.HeaderPreset;
 import it.dls.domain.dlqconfig.RetentionPolicy;
 
 import java.util.List;
@@ -20,6 +22,8 @@ public record DlqConfigResponse(
     int retentionValue,
     UUID schemaRegistryId,
     String defaultReplayTopic,
+    HeaderPreset headerPreset,
+    HeaderMapping headerMapping,
     List<UserAssignmentResponse> userAssignments
 ) {
     public record UserAssignmentResponse(UUID userId, DlqRole role) {}
@@ -37,6 +41,8 @@ public record DlqConfigResponse(
             c.getRetentionPolicy().value(),
             c.getSchemaRegistryId(),
             c.getDefaultReplayTopic(),
+            c.getHeaderPreset(),
+            c.getHeaderMapping(),
             c.getUserAssignments().stream()
                 .map(a -> new UserAssignmentResponse(a.userId(), a.role()))
                 .toList()

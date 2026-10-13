@@ -97,7 +97,8 @@ public class ClusterResource {
             var cmd = new CreateDlqConfigCommand(
                 req.topicName(), req.displayName(), req.downloadMode(),
                 req.cronExpression(), req.batchSize(),
-                req.retentionType(), req.retentionValue(), req.schemaRegistryId()
+                req.retentionType(), req.retentionValue(), req.schemaRegistryId(),
+                req.headerPreset(), req.headerMapping()
             );
             var config = manageDlqConfig.createDlqConfig(clusterId, cmd);
             return Response.created(URI.create("/api/clusters/" + clusterId + "/dlq-configs/" + config.getId()))
@@ -120,12 +121,15 @@ public class ClusterResource {
         try {
             var cmd = new UpdateDlqConfigCommand(
                 req.displayName(), req.downloadMode(), req.cronExpression(), req.batchSize(),
-                req.retentionType(), req.retentionValue(), req.schemaRegistryId(), req.defaultReplayTopic()
+                req.retentionType(), req.retentionValue(), req.schemaRegistryId(), req.defaultReplayTopic(),
+                req.headerPreset(), req.headerMapping()
             );
             var config = manageDlqConfig.updateDlqConfig(configId, cmd);
             return Response.ok(DlqConfigResponse.from(config)).build();
         } catch (IllegalArgumentException e) {
-            return ProblemDetail.notFound(e.getMessage()).toResponse();
+            return e.getMessage() != null && e.getMessage().startsWith("DlqConfig not found")
+                ? ProblemDetail.notFound(e.getMessage()).toResponse()
+                : ProblemDetail.badRequest(e.getMessage()).toResponse();
         }
     }
 }
