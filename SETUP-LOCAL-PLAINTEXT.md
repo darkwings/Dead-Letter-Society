@@ -136,6 +136,30 @@ Confluent Avro wire format accordingly. Run `register-schema.sh` first to get Av
 messages also get `dead-letter-cause` and `dead-letter-cause-class-name`, as SmallRye only sets them when the
 failure has a cause. Headers are ignored in Avro mode. Arguments are positional: first the topic, then the count.
 
+### Seed DLQ messages with Avro and headers (Python)
+
+`seed-dlq.sh` cannot send headers together with Avro, nor the binary headers Spring Kafka writes.
+`produce-dlq.py` can. One-time setup:
+
+```bash
+python3 -m venv scripts/.venv
+scripts/.venv/bin/pip install -r scripts/requirements.txt
+```
+
+```bash
+scripts/.venv/bin/python scripts/plaintext/produce-dlq.py --preset spring --topic orders.dlq --count 50
+scripts/.venv/bin/python scripts/plaintext/produce-dlq.py --preset smallrye --format json
+```
+
+- `--preset legacy|spring|smallrye|custom` selects header names and encodings, matching the DLQ config
+  Header Preset (`spring`: int32 partition, int64 offset and timestamp). `custom` emits `x-failed-topic`,
+  `x-failed-partition`, `x-failed-offset` and `x-failed-error`; map those by hand in the DLQ config.
+- `--format avro` (default) uses the subject `<topic>-value`, registering the `Order` schema if it is missing.
+- About 10% of messages are deliberately malformed (wrong header length, missing original-topic header,
+  undecodable payload). Use `--no-malformed` to turn that off, `--seed N` for reproducible data.
+
+Unit tests for the header encoding: `scripts/.venv/bin/python -m pytest scripts/plaintext`.
+
 ---
 
 ## Manual Kafka operations
