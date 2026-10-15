@@ -312,4 +312,47 @@ class FetchMessagesUseCaseTest {
         return new RawKafkaMessage(partition, offset, Instant.now(),
             null, "{\"event\":\"test\"}".getBytes(), Map.of());
     }
+
+    // Header mapping: Spring binary headers are decoded using the config's mapping
+    @Test
+    void springBinaryHeadersDecodedUsingConfigMapping() {
+        var cluster = buildCluster();
+        var config = buildDlqConfig(cluster, DownloadMode.ON_DEMAND, 100);
+        config.changeHeaderMapping(HeaderPreset.SPRING, null);
+        when(configRepo.findById(config.getId())).thenReturn(Optional.of(config));
+        when(clusterRepo.findById(cluster.getId())).thenReturn(Optional.of(cluster));
+        when(kafkaConsumer.getPartitions(any(), any(), any())).thenReturn(List.of(0));
+        when(kafkaConsumer.getEarliestOffsets(any(), any(), any(), any())).thenReturn(Map.of(0, 0L));
+        var headers = new HashMap<String, byte[]>();
+        headers.put("kafka_dlt-original-topic", "orders".getBytes());
+        headers.put("kafka_dlt-original-partition", java.nio.ByteBuffer.allocate(4).putInt(3).array());
+        headers.put("kafka_dlt-original-offset", java.nio.ByteBuffer.allocate(8).putLong(42L).array());
+        var raw = new RawKafkaMessage(0, 5L, Instant.now(), null, "{}".getBytes(), headers);
+        when(kafkaConsumer.fetch(any(), any(), any(), any(), anyInt())).thenReturn(List.of(raw));
+
+        useCase.fetchOnDemand(config.getId(), UUID.randomUUID());
+
+        verify(messageRepo).save(argThat((DlqMessage m) ->
+            "orders".equals(m.getHeaders().get("kafka_dlt-original-topic"))
+            && "3".equals(m.getHeaders().get("kafka_dlt-original-partition"))
+            && "42".equals(m.getHeaders().get("kafka_dlt-original-offset"))));
+    }
+
+    // Missing headers never fail ingestion
+    @Test
+    void messageWithoutAnyHeadersIsIngestedUnderSpringPreset() {
+        var cluster = buildCluster();
+        var config = buildDlqConfig(cluster, DownloadMode.ON_DEMAND, 100);
+        config.changeHeaderMapping(HeaderPreset.SPRING, null);
+        when(configRepo.findById(config.getId())).thenReturn(Optional.of(config));
+        when(clusterRepo.findById(cluster.getId())).thenReturn(Optional.of(cluster));
+        when(kafkaConsumer.getPartitions(any(), any(), any())).thenReturn(List.of(0));
+        when(kafkaConsumer.getEarliestOffsets(any(), any(), any(), any())).thenReturn(Map.of(0, 0L));
+        when(kafkaConsumer.fetch(any(), any(), any(), any(), anyInt()))
+            .thenReturn(List.of(new RawKafkaMessage(0, 1L, Instant.now(), null, "{}".getBytes(), Map.of())));
+
+        useCase.fetchOnDemand(config.getId(), UUID.randomUUID());
+
+        verify(messageRepo).save(argThat((DlqMessage m) -> m.getHeaders().isEmpty()));
+    }
 }

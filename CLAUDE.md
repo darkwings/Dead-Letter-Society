@@ -38,6 +38,8 @@ Frontend: React + Vite + TypeScript, TanStack Query, Zustand auth store, Tailwin
 
 **Schema Registry:** `SchemaRegistryPort.validate()` takes `int schemaId` (primitive). Cluster's SR is nullable; always null-check `cluster.getSchemaRegistry()` before use.
 
+**Header mapping:** `DlqConfig.headerMapping` (preset LEGACY/SPRING/QUARKUS_SMALLRYE/CUSTOM) names the failure headers; never hardcode `x-original-topic`. Ingestion decodes binary headers with `HeaderDecoder` (INT32/INT64 → decimal string); reads go through `FailureInfoExtractor`/`FailureInfoAssembler` (`failureInfo` on message JSON). Missing headers never fail anything: `ReplayTopicResolver` throws only when no wizard/bulk override, no config default and no mapped header exist, and the UI always lets the user type a topic.
+
 **Metrics:** `DlqMessageMetrics` (infrastructure) publishes the `dls_dlq_messages` gauge at `/q/metrics`. Gauges read an in-memory snapshot refreshed on a schedule (`dls.metrics.refresh-interval`, set to `1h` in `%test`), never the DB on scrape. In ITs call `metrics.refresh()` explicitly.
 
 **Frontend API client:** Single `apiFetch<T>` in `src/lib/api.ts`. No generated OpenAPI client. Types are hand-written interfaces co-located with each page.
@@ -80,6 +82,7 @@ Frontend: React + Vite + TypeScript, TanStack Query, Zustand auth store, Tailwin
 | V4 | dlq_messages + partition_offsets |
 | V5 | notes |
 | V6 | replay_audit_records + default_replay_topic on dlq_configs |
+| V10 | header_preset + header_mapping (JSONB) on dlq_configs |
 
 ## Running Locally
 

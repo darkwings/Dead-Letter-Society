@@ -35,8 +35,13 @@ public class BulkReplayUseCase {
 
     private final ReplayTopicResolver topicResolver = new ReplayTopicResolver();
 
-    @Transactional
     public BulkReplayResult bulkReplay(UUID dlqConfigId, List<UUID> messageIds, UUID replayedBy) {
+        return bulkReplay(dlqConfigId, messageIds, replayedBy, null);
+    }
+
+    @Transactional
+    public BulkReplayResult bulkReplay(UUID dlqConfigId, List<UUID> messageIds, UUID replayedBy,
+                                       String targetTopicOverride) {
         var config = configRepo.findById(dlqConfigId)
             .orElseThrow(() -> new IllegalArgumentException("DlqConfig not found: " + dlqConfigId));
         var cluster = clusterRepo.findById(config.getClusterId())
@@ -47,7 +52,7 @@ public class BulkReplayUseCase {
         for (UUID msgId : messageIds) {
             var msgOpt = messageRepo.findById(msgId);
             if (msgOpt.isEmpty()) continue;
-            if (replayOne(msgOpt.get(), config, cluster, security, replayedBy, dlqConfigId)) {
+            if (replayOne(msgOpt.get(), config, cluster, security, replayedBy, dlqConfigId, targetTopicOverride)) {
                 succeeded++;
             } else {
                 failed++;
@@ -58,10 +63,10 @@ public class BulkReplayUseCase {
 
     private boolean replayOne(DlqMessage msg, DlqConfig config, KafkaCluster cluster,
                                KafkaSecurityConfig security,
-                               UUID replayedBy, UUID dlqConfigId) {
+                               UUID replayedBy, UUID dlqConfigId, String targetTopicOverride) {
         String targetTopic;
         try {
-            targetTopic = topicResolver.resolve(msg, config, null);
+            targetTopic = topicResolver.resolve(msg, config, targetTopicOverride);
         } catch (ReplayTopicNotResolvableException e) {
             return false;
         }

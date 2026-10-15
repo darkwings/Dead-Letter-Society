@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
@@ -6,6 +7,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api'
 import TopicCombobox from '@/components/TopicCombobox'
+import HeaderMappingFields, { EMPTY_MAPPING, type HeaderMappingValue, type HeaderPresetName } from '@/components/HeaderMappingFields'
 
 interface DlqConfigResponse {
   id: string
@@ -43,6 +45,8 @@ export default function CreateDlqConfigPage() {
       retentionValue: 30,
     },
   })
+  const [headerPreset, setHeaderPreset] = useState<HeaderPresetName>('LEGACY')
+  const [headerMapping, setHeaderMapping] = useState<HeaderMappingValue>(EMPTY_MAPPING)
   const downloadMode = watch('downloadMode')
   const retentionType = watch('retentionType')
 
@@ -50,7 +54,11 @@ export default function CreateDlqConfigPage() {
     mutationFn: (data: FormValues) =>
       apiFetch<DlqConfigResponse>(`/api/clusters/${clusterId}/dlq-configs`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          headerPreset,
+          headerMapping: headerPreset === 'CUSTOM' ? headerMapping : undefined,
+        }),
       }),
     onSuccess: (newConfig) => {
       queryClient.setQueryData<DlqConfigResponse[]>(['dlq-configs', clusterId], (old = []) => [...old, newConfig])
@@ -64,7 +72,7 @@ export default function CreateDlqConfigPage() {
   })
 
   return (
-    <div style={{ padding: 32, maxWidth: 480, margin: '0 auto' }}>
+    <div style={{ padding: 32, maxWidth: 720, margin: '0 auto' }}>
       <h1 className="t-h1" style={{ marginBottom: 24 }}>Add DLQ Config</h1>
 
       <div className="card" style={{ padding: 24 }}>
@@ -136,6 +144,12 @@ export default function CreateDlqConfigPage() {
             </label>
             <input id="retentionValue" type="number" className="input" {...register('retentionValue', { valueAsNumber: true })} />
           </div>
+
+          <HeaderMappingFields
+            preset={headerPreset}
+            mapping={headerMapping}
+            onChange={(p, m) => { setHeaderPreset(p); setHeaderMapping(m) }}
+          />
 
           <button
             type="submit"

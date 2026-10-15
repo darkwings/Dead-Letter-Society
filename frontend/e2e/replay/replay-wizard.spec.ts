@@ -18,6 +18,7 @@ const baseMessage = {
   rawPayload: 'eyJldmVudCI6InBheW1lbnQuZmFpbGVkIn0=',
   key: null,
   headers: { 'x-original-topic': 'orders', 'X-Correlation-Id': 'abc-123' },
+  failureInfo: { originalTopic: 'orders', originalPartition: null, originalOffset: null, originalTimestamp: null, exceptionMessage: null, exceptionStacktrace: null },
 }
 
 test.beforeEach(async ({ page }) => {

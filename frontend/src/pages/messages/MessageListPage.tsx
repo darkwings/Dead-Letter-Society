@@ -18,6 +18,7 @@ interface MessageSummary {
   ingestedAt: string
   decodedPayload: unknown | null
   headers: Record<string, string>
+  failureInfo?: { originalTopic: string | null }
 }
 
 interface MessagePageResponse {
@@ -60,6 +61,53 @@ function payloadPreview(msg: MessageSummary): string {
     return str.length > 80 ? str.slice(0, 80) + '…' : str
   }
   return '—'
+}
+
+/**
+ * WebKit renders an empty datetime-local as the current date/time, which looks like an
+ * applied filter. While empty, hide that placeholder and show "Any" instead.
+ */
+function DateTimeFilter({ label, clearLabel, value, onChange }: {
+  label: string
+  clearLabel: string
+  value: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>{label}</span>
+      <div style={{ position: 'relative' }}>
+        <input
+          type="datetime-local"
+          className="input"
+          aria-label={label}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            width: '100%', paddingRight: value ? 28 : undefined, colorScheme: 'dark',
+            color: value ? undefined : 'transparent',
+          }}
+        />
+        {!value && (
+          <span style={{
+            position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+            fontSize: 13, color: 'hsl(var(--muted-foreground))', pointerEvents: 'none',
+          }}>Any</span>
+        )}
+        {value && (
+          <button
+            onClick={() => onChange('')}
+            style={{
+              position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'hsl(var(--muted-foreground))', fontSize: 14, lineHeight: 1, padding: 2,
+            }}
+            aria-label={clearLabel}
+          >×</button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function MessageListPage() {
@@ -165,18 +213,23 @@ export default function MessageListPage() {
   }
 
   const selectedMessages = messages.filter(m => selectedIds.has(m.id))
-  const canBulkReplay = configData?.defaultReplayTopic != null ||
-    selectedMessages.some(m => m.headers?.['x-original-topic'])
+  const [bulkTopicOverride, setBulkTopicOverride] = useState('')
+  const noTopicKnown = !bulkTopicOverride.trim() && configData?.defaultReplayTopic == null &&
+    selectedMessages.length > 0 && !selectedMessages.some(m => !!m.failureInfo?.originalTopic)
 
   const bulkReplayMutation = useMutation({
     mutationFn: () => apiFetch<{ succeeded: number; failed: number }>(
       `/api/dlq-configs/${configId}/messages/bulk-replay`,
-      { method: 'POST', body: JSON.stringify({ messageIds: [...selectedIds] }) }
+      { method: 'POST', body: JSON.stringify({
+        messageIds: [...selectedIds],
+        targetTopicOverride: bulkTopicOverride.trim() || undefined,
+      }) }
     ),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['messages', configId] })
       queryClient.invalidateQueries({ queryKey: ['dlq-badge', configId] })
       setSelectedIds(new Set())
+      setBulkTopicOverride('')
       if (result.failed === 0) {
         toast.success(`${result.succeeded} message${result.succeeded !== 1 ? 's' : ''} replayed`)
       } else {
@@ -266,53 +319,8 @@ export default function MessageListPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 500, color: 'hsl(var(--muted-foreground))' }}>Date range</label>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>From</span>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="datetime-local"
-                  className="input"
-                  value={fromFilter}
-                  onChange={(e) => setFromFilter(e.target.value)}
-                  style={{ width: '100%', paddingRight: fromFilter ? 28 : undefined, colorScheme: 'dark' }}
-                />
-                {fromFilter && (
-                  <button
-                    onClick={() => setFromFilter('')}
-                    style={{
-                      position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      color: 'hsl(var(--muted-foreground))', fontSize: 14, lineHeight: 1, padding: 2,
-                    }}
-                    aria-label="Clear from date"
-                  >×</button>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>To</span>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="datetime-local"
-                  className="input"
-                  value={toFilter}
-                  onChange={(e) => setToFilter(e.target.value)}
-                  style={{ width: '100%', paddingRight: toFilter ? 28 : undefined, colorScheme: 'dark' }}
-                />
-                {toFilter && (
-                  <button
-                    onClick={() => setToFilter('')}
-                    style={{
-                      position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      color: 'hsl(var(--muted-foreground))', fontSize: 14, lineHeight: 1, padding: 2,
-                    }}
-                    aria-label="Clear to date"
-                  >×</button>
-                )}
-              </div>
-            </div>
+            <DateTimeFilter label="From" clearLabel="Clear from date" value={fromFilter} onChange={setFromFilter} />
+            <DateTimeFilter label="To" clearLabel="Clear to date" value={toFilter} onChange={setToFilter} />
 
             {!fromFilter && !toFilter && (
               <p style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', margin: 0 }}>No date filter set</p>
@@ -366,6 +374,21 @@ export default function MessageListPage() {
             )}
             {isOperator && selectedIds.size > 0 && (
               <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <input
+                    data-testid="bulk-topic-override"
+                    className="input"
+                    placeholder="Target topic (optional)"
+                    value={bulkTopicOverride}
+                    onChange={(e) => setBulkTopicOverride(e.target.value)}
+                    style={{ height: 32, width: 220 }}
+                  />
+                  {noTopicKnown && (
+                    <span data-testid="bulk-no-topic-hint" style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
+                      No replay topic found for the selection. Enter one, or these messages will be skipped.
+                    </span>
+                  )}
+                </div>
                 <button
                   className="btn btn-secondary"
                   disabled={bulkUnderReviewMutation.isPending || bulkDiscardMutation.isPending || bulkReplayMutation.isPending}
@@ -382,9 +405,8 @@ export default function MessageListPage() {
                 </button>
                 <button
                   className="btn btn-primary"
-                  disabled={!canBulkReplay || bulkReplayMutation.isPending || bulkDiscardMutation.isPending || bulkUnderReviewMutation.isPending}
+                  disabled={bulkReplayMutation.isPending || bulkDiscardMutation.isPending || bulkUnderReviewMutation.isPending}
                   onClick={() => bulkReplayMutation.mutate()}
-                  title={!canBulkReplay ? 'No replay topic configured' : undefined}
                 >
                   {bulkReplayMutation.isPending ? 'Replaying…' : `Replay (${selectedIds.size} selected)`}
                 </button>

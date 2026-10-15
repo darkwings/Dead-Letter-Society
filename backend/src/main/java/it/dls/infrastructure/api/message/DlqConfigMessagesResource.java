@@ -1,5 +1,6 @@
 package it.dls.infrastructure.api.message;
 
+import it.dls.application.inspection.FailureInfoAssembler;
 import it.dls.application.inspection.InspectMessagesUseCase;
 import it.dls.application.inspection.BulkDiscardResult;
 import it.dls.application.inspection.BulkUnderReviewResult;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class DlqConfigMessagesResource {
 
     @Inject InspectMessagesUseCase inspectMessages;
+    @Inject FailureInfoAssembler failureInfoAssembler;
     @Inject BulkReplayUseCase bulkReplay;
     @Inject JsonWebToken jwt;
 
@@ -47,7 +49,7 @@ public class DlqConfigMessagesResource {
             var filter = new MessageFilter(status, from, to, partition, offsetFrom, offsetTo);
             var result = inspectMessages.listMessages(
                 configId, filter, new Pageable(page, size), currentUserId(), isAdmin());
-            return Response.ok(MessagePageResponse.from(result)).build();
+            return Response.ok(MessagePageResponse.from(result, failureInfoAssembler.assembleAll(result.messages()))).build();
         } catch (IllegalArgumentException e) {
             return ProblemDetail.notFound(e.getMessage()).toResponse();
         } catch (SecurityException e) {
@@ -65,7 +67,7 @@ public class DlqConfigMessagesResource {
             return ProblemDetail.badRequest("messageIds must not be empty").toResponse();
         }
         try {
-            var result = bulkReplay.bulkReplay(configId, req.messageIds(), currentUserId());
+            var result = bulkReplay.bulkReplay(configId, req.messageIds(), currentUserId(), req.targetTopicOverride());
             return Response.ok(result).build();
         } catch (IllegalArgumentException e) {
             return ProblemDetail.notFound(e.getMessage()).toResponse();

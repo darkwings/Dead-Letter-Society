@@ -13,6 +13,15 @@ interface DlqConfigSummary {
   displayName: string
 }
 
+interface FailureInfo {
+  originalTopic: string | null
+  originalPartition: number | null
+  originalOffset: number | null
+  originalTimestamp: string | null
+  exceptionMessage: string | null
+  exceptionStacktrace: string | null
+}
+
 interface MessageDetail {
   id: string
   dlqConfigId: string
@@ -28,6 +37,7 @@ interface MessageDetail {
   key: string | null
   headers: Record<string, string>
   replayedDecodedPayload: unknown | null
+  failureInfo?: FailureInfo
 }
 
 // ── JSON syntax highlighter ───────────────────────────────────────────────────
@@ -115,7 +125,7 @@ function JsonViewer({ data, testId }: { data: unknown; testId?: string }) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'payload' | 'raw' | 'headers' | 'replayed'
+type Tab = 'payload' | 'raw' | 'headers' | 'replayed' | 'failure'
 
 export default function MessageDetailPage() {
   const { messageId } = useParams<{ messageId: string }>()
@@ -196,12 +206,15 @@ export default function MessageDetailPage() {
   }
 
   const headerEntries = Object.entries(msg.headers ?? {})
+  const fi = msg.failureInfo
+  const hasFailureInfo = !!fi && Object.values(fi).some(v => v !== null && v !== undefined)
   const canAct = msg.status === 'NEW' || msg.status === 'UNDER_REVIEW' || msg.status === 'REPLAY_FAILED'
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'payload', label: 'Decoded Payload' },
     { id: 'raw', label: 'Raw' },
     { id: 'headers', label: `Headers${headerEntries.length ? ` (${headerEntries.length})` : ''}` },
+    ...(hasFailureInfo ? [{ id: 'failure' as Tab, label: 'Failure' }] : []),
     ...((msg.status === 'REPLAYED' || msg.status === 'REPLAY_FAILED') && msg.replayedDecodedPayload
       ? [{ id: 'replayed' as Tab, label: 'Replayed Payload' }]
       : []),
@@ -332,6 +345,30 @@ export default function MessageDetailPage() {
             )
           )}
 
+          {activeTab === 'failure' && fi && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <dl style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '6px 16px', margin: 0 }}>
+                {fi.originalTopic && (<><dt className="t-small">Original topic</dt><dd style={{ margin: 0 }}>{fi.originalTopic}</dd></>)}
+                {fi.originalPartition !== null && fi.originalPartition !== undefined && (<><dt className="t-small">Original partition</dt><dd style={{ margin: 0 }}>{fi.originalPartition}</dd></>)}
+                {fi.originalOffset !== null && fi.originalOffset !== undefined && (<><dt className="t-small">Original offset</dt><dd style={{ margin: 0 }}>{fi.originalOffset}</dd></>)}
+                {fi.originalTimestamp && (<><dt className="t-small">Original timestamp</dt><dd style={{ margin: 0 }}>{new Date(fi.originalTimestamp).toLocaleString()}</dd></>)}
+                {fi.exceptionMessage && (<><dt className="t-small">Exception</dt><dd style={{ margin: 0 }}>{fi.exceptionMessage}</dd></>)}
+              </dl>
+              {fi.exceptionStacktrace && (
+                <pre
+                  style={{
+                    fontFamily: "'Geist Mono', 'JetBrains Mono', ui-monospace, monospace",
+                    fontSize: 12, lineHeight: 1.65, padding: 16, margin: 0,
+                    background: 'hsl(var(--code-bg))', borderRadius: 'var(--radius)',
+                    overflow: 'auto', whiteSpace: 'pre-wrap', color: 'hsl(var(--code-fg))',
+                  }}
+                >
+                  {fi.exceptionStacktrace}
+                </pre>
+              )}
+            </div>
+          )}
+
           {activeTab === 'replayed' && (
             msg.replayedDecodedPayload
               ? <JsonViewer data={msg.replayedDecodedPayload} testId="replayed-decoded-payload" />
@@ -394,7 +431,7 @@ export default function MessageDetailPage() {
       {showReplay && messageId && (
         <ReplayWizard
           messageId={messageId}
-          resolvedTopic={(msg.headers as Record<string, string>)['x-original-topic'] ?? null}
+          resolvedTopic={msg.failureInfo?.originalTopic ?? null}
           hasDecodedPayload={!!msg.decodedPayload}
           decodedPayload={msg.decodedPayload}
           onClose={() => setShowReplay(false)}

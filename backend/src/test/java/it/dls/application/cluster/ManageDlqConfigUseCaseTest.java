@@ -153,4 +153,62 @@ class ManageDlqConfigUseCaseTest {
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Cluster not found");
     }
+
+    // ── header mapping ────────────────────────────────────────────────────────
+
+    @Test
+    void createWithSpringPresetStoresSpringMapping() {
+        when(clusterRepo.findById(clusterId)).thenReturn(Optional.of(
+            it.dls.domain.cluster.KafkaCluster.reconstitute(clusterId, "c", "localhost:9092",
+                it.dls.domain.cluster.KafkaSecurityConfig.plaintext(), null)));
+        var cmd = new CreateDlqConfigCommand("orders-dlq", "Orders DLQ", DownloadMode.ON_DEMAND,
+            null, 100, RetentionPolicy.RetentionType.MAX_COUNT, 100, null,
+            HeaderPreset.SPRING, null);
+
+        var config = useCase.createDlqConfig(clusterId, cmd);
+
+        assertThat(config.getHeaderPreset()).isEqualTo(HeaderPreset.SPRING);
+        assertThat(config.getHeaderMapping()).isEqualTo(HeaderPreset.SPRING.mapping());
+    }
+
+    @Test
+    void createWithoutPresetDefaultsToLegacy() {
+        when(clusterRepo.findById(clusterId)).thenReturn(Optional.of(
+            it.dls.domain.cluster.KafkaCluster.reconstitute(clusterId, "c", "localhost:9092",
+                it.dls.domain.cluster.KafkaSecurityConfig.plaintext(), null)));
+        var cmd = new CreateDlqConfigCommand("orders-dlq", "Orders DLQ", DownloadMode.ON_DEMAND,
+            null, 100, RetentionPolicy.RetentionType.MAX_COUNT, 100, null);
+
+        var config = useCase.createDlqConfig(clusterId, cmd);
+
+        assertThat(config.getHeaderPreset()).isEqualTo(HeaderPreset.LEGACY);
+    }
+
+    @Test
+    void updateWithNullPresetKeepsExistingMapping() {
+        var existing = sampleConfig();
+        existing.changeHeaderMapping(HeaderPreset.SPRING, null);
+        when(dlqConfigRepo.findById(existing.getId())).thenReturn(Optional.of(existing));
+
+        var updated = useCase.updateDlqConfig(existing.getId(), new UpdateDlqConfigCommand(
+            "New name", DownloadMode.ON_DEMAND, null, 100,
+            RetentionPolicy.RetentionType.MAX_COUNT, 100, null, null));
+
+        assertThat(updated.getHeaderPreset()).isEqualTo(HeaderPreset.SPRING);
+    }
+
+    @Test
+    void updateWithCustomPresetAppliesMapping() {
+        var existing = sampleConfig();
+        when(dlqConfigRepo.findById(existing.getId())).thenReturn(Optional.of(existing));
+        var custom = new HeaderMapping(new HeaderField("my-topic", HeaderEncoding.STRING),
+            null, null, null, null, null);
+
+        var updated = useCase.updateDlqConfig(existing.getId(), new UpdateDlqConfigCommand(
+            "New name", DownloadMode.ON_DEMAND, null, 100,
+            RetentionPolicy.RetentionType.MAX_COUNT, 100, null, null,
+            HeaderPreset.CUSTOM, custom));
+
+        assertThat(updated.getHeaderMapping()).isEqualTo(custom);
+    }
 }

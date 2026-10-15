@@ -1,8 +1,14 @@
 package it.dls.infrastructure.persistence;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import it.dls.domain.dlqconfig.*;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.jboss.logging.Logger;
+import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,6 +55,18 @@ public class DlqConfigEntity extends PanacheEntityBase {
     @Column(name = "default_replay_topic")
     public String defaultReplayTopic;
 
+    private static final Logger LOG = Logger.getLogger(DlqConfigEntity.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "header_preset")
+    public HeaderPreset headerPreset = HeaderPreset.LEGACY;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "header_mapping", columnDefinition = "jsonb")
+    public JsonNode headerMapping;
+
     @Column(name = "created_at")
     public Instant createdAt;
 
@@ -74,6 +92,8 @@ public class DlqConfigEntity extends PanacheEntityBase {
         e.retentionValue = c.getRetentionPolicy().value();
         e.schemaRegistryId = c.getSchemaRegistryId();
         e.defaultReplayTopic = c.getDefaultReplayTopic();
+        e.headerPreset = c.getHeaderPreset();
+        e.headerMapping = mappingToJson(c.getHeaderMapping());
         e.createdAt = Instant.now();
         e.updatedAt = Instant.now();
         for (var a : c.getUserAssignments()) {
@@ -100,6 +120,20 @@ public class DlqConfigEntity extends PanacheEntityBase {
             .map(PartitionOffsetEntity::toDomain)
             .collect(Collectors.toList());
         return DlqConfig.reconstitute(id, clusterId, topicName, displayName,
-            fetch, retention, schemaRegistryId, userAssignments, offsets, defaultReplayTopic);
+            fetch, retention, schemaRegistryId, userAssignments, offsets, defaultReplayTopic,
+            headerPreset, readMappingOrPresetDefault());
+    }
+
+    public static JsonNode mappingToJson(HeaderMapping m) { return MAPPER.valueToTree(m); }
+
+    /** A corrupt or incompatible stored mapping must never make the config unreadable. */
+    private HeaderMapping readMappingOrPresetDefault() {
+        if (headerMapping == null) return null;
+        try {
+            return MAPPER.treeToValue(headerMapping, HeaderMapping.class);
+        } catch (Exception e) {
+            LOG.warnf("Unreadable header_mapping for DLQ config %s, using preset default: %s", id, e.getMessage());
+            return headerPreset != null ? headerPreset.mapping() : null;
+        }
     }
 }

@@ -108,8 +108,13 @@ Configuration for monitoring a DLQ topic on a cluster.
 | `fetchConfig` | `FetchConfig` | mode, cron, batchSize |
 | `retentionPolicy` | `RetentionPolicy` | days or maxCount |
 | `defaultReplayTopic` | String? | explicit replay topic override |
+| `headerPreset` | `HeaderPreset` | LEGACY (default) / SPRING / QUARKUS_SMALLRYE / CUSTOM |
+| `headerMapping` | `HeaderMapping` | which headers carry original topic/partition/offset/timestamp and exception message/stacktrace |
 | `userAssignments` | List\<UserAssignment\> | User × Role |
 | `partitionOffsets` | List\<PartitionOffset\> | fetch state per partition |
+
+### `HeaderMapping` *(Value Object)*
+Six optional `HeaderField{name, encoding}` entries: `originalTopic`, `originalPartition`, `originalOffset`, `originalTimestamp`, `exceptionMessage`, `exceptionStacktrace`. Encodings: `STRING` (all fields), `INT32` (partition only), `INT64` (offset, timestamp). Binary values are decoded to decimal strings at ingestion; the stored `headers` map stays `Map<String,String>`. A message may lack any mapped header: the matching `FailureInfo` field is then null and nothing fails.
 
 ### `FetchConfig` *(Value Object)*
 

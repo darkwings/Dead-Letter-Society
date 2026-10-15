@@ -14,7 +14,9 @@ public class DlqConfig {
     private FetchConfig fetchConfig;
     private RetentionPolicy retentionPolicy;
     private UUID schemaRegistryId;  // nullable
-    private String defaultReplayTopic;  // nullable — overrides x-original-topic header
+    private String defaultReplayTopic;  // nullable — overrides the original-topic header
+    private HeaderPreset headerPreset = HeaderPreset.LEGACY;
+    private HeaderMapping headerMapping = HeaderPreset.LEGACY.mapping();
     private final List<UserAssignment> userAssignments = new ArrayList<>();
     private final List<PartitionOffset> partitionOffsets = new ArrayList<>();
 
@@ -57,6 +59,17 @@ public class DlqConfig {
                                          UUID schemaRegistryId, List<UserAssignment> assignments,
                                          List<PartitionOffset> partitionOffsets,
                                          String defaultReplayTopic) {
+        return reconstitute(id, clusterId, topicName, displayName, fetchConfig, retentionPolicy,
+            schemaRegistryId, assignments, partitionOffsets, defaultReplayTopic,
+            HeaderPreset.LEGACY, HeaderPreset.LEGACY.mapping());
+    }
+
+    public static DlqConfig reconstitute(UUID id, UUID clusterId, String topicName, String displayName,
+                                         FetchConfig fetchConfig, RetentionPolicy retentionPolicy,
+                                         UUID schemaRegistryId, List<UserAssignment> assignments,
+                                         List<PartitionOffset> partitionOffsets,
+                                         String defaultReplayTopic,
+                                         HeaderPreset headerPreset, HeaderMapping headerMapping) {
         var c = new DlqConfig();
         c.id = id;
         c.clusterId = clusterId;
@@ -66,6 +79,8 @@ public class DlqConfig {
         c.retentionPolicy = retentionPolicy;
         c.schemaRegistryId = schemaRegistryId;
         c.defaultReplayTopic = defaultReplayTopic;
+        c.headerPreset = headerPreset != null ? headerPreset : HeaderPreset.LEGACY;
+        c.headerMapping = headerMapping != null ? headerMapping : c.headerPreset.mapping();
         if (assignments != null) c.userAssignments.addAll(assignments);
         if (partitionOffsets != null) c.partitionOffsets.addAll(partitionOffsets);
         return c;
@@ -86,6 +101,19 @@ public class DlqConfig {
     }
 
     public void setDefaultReplayTopic(String topic) { this.defaultReplayTopic = topic; }
+
+    public void changeHeaderMapping(HeaderPreset preset, HeaderMapping custom) {
+        if (preset == null)
+            throw new IllegalArgumentException("headerPreset must not be null");
+        if (preset == HeaderPreset.CUSTOM) {
+            if (custom == null)
+                throw new IllegalArgumentException("headerMapping is required for CUSTOM preset");
+            this.headerMapping = custom;
+        } else {
+            this.headerMapping = preset.mapping();
+        }
+        this.headerPreset = preset;
+    }
 
     public void update(String displayName, FetchConfig fetchConfig, RetentionPolicy retentionPolicy,
                        UUID schemaRegistryId, String defaultReplayTopic) {
@@ -110,6 +138,8 @@ public class DlqConfig {
     public RetentionPolicy getRetentionPolicy() { return retentionPolicy; }
     public UUID getSchemaRegistryId() { return schemaRegistryId; }
     public String getDefaultReplayTopic() { return defaultReplayTopic; }
+    public HeaderPreset getHeaderPreset() { return headerPreset; }
+    public HeaderMapping getHeaderMapping() { return headerMapping; }
     public List<UserAssignment> getUserAssignments() { return Collections.unmodifiableList(userAssignments); }
     public List<PartitionOffset> getPartitionOffsets() { return Collections.unmodifiableList(partitionOffsets); }
 }

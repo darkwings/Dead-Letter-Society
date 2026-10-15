@@ -158,4 +158,57 @@ class DlqConfigRepositoryAdapterIT {
         assertThat(found.getUserAssignments()).hasSize(1);
         assertThat(found.getUserAssignments().get(0).role()).isEqualTo(DlqRole.OPERATOR);
     }
+
+    @Inject jakarta.persistence.EntityManager em;
+
+    @Test
+    @TestTransaction
+    void headerMappingRoundTripsForEachPreset() {
+        var cluster = savedCluster();
+        for (var preset : new HeaderPreset[]{HeaderPreset.LEGACY, HeaderPreset.SPRING, HeaderPreset.QUARKUS_SMALLRYE}) {
+            var config = DlqConfig.create(cluster.getId(), "t-" + preset, "T " + preset,
+                FetchConfig.onDemand(10), RetentionPolicy.maxCount(10), null);
+            config.changeHeaderMapping(preset, null);
+            repo.save(config);
+            em.flush();
+            em.clear();
+            var found = repo.findById(config.getId()).orElseThrow();
+            assertThat(found.getHeaderPreset()).isEqualTo(preset);
+            assertThat(found.getHeaderMapping()).isEqualTo(preset.mapping());
+        }
+    }
+
+    @Test
+    @TestTransaction
+    void customHeaderMappingRoundTripsAndUpdates() {
+        var cluster = savedCluster();
+        var config = DlqConfig.create(cluster.getId(), "custom-dlq", "Custom",
+            FetchConfig.onDemand(10), RetentionPolicy.maxCount(10), null);
+        repo.save(config);
+        var custom = new HeaderMapping(new HeaderField("my-topic", HeaderEncoding.STRING),
+            new HeaderField("my-part", HeaderEncoding.INT32), null, null, null, null);
+        config.changeHeaderMapping(HeaderPreset.CUSTOM, custom);
+        repo.save(config);
+        em.flush();
+        em.clear();
+        var found = repo.findById(config.getId()).orElseThrow();
+        assertThat(found.getHeaderPreset()).isEqualTo(HeaderPreset.CUSTOM);
+        assertThat(found.getHeaderMapping()).isEqualTo(custom);
+    }
+
+    @Test
+    @TestTransaction
+    void rowsInsertedWithoutMappingColumnsGetLegacyDefaults() {
+        var cluster = savedCluster();
+        var id = UUID.randomUUID();
+        em.createNativeQuery("""
+            INSERT INTO dlq_configs (id, cluster_id, topic_name, display_name, download_mode,
+                batch_size, retention_type, retention_value)
+            VALUES (:id, :cid, 'old-dlq', 'Old', 'ON_DEMAND', 10, 'MAX_COUNT', 10)
+            """).setParameter("id", id).setParameter("cid", cluster.getId()).executeUpdate();
+        em.clear();
+        var found = repo.findById(id).orElseThrow();
+        assertThat(found.getHeaderPreset()).isEqualTo(HeaderPreset.LEGACY);
+        assertThat(found.getHeaderMapping().originalTopic().name()).isEqualTo("x-original-topic");
+    }
 }

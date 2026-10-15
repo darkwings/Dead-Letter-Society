@@ -288,4 +288,18 @@ class ReplayMessageUseCaseTest {
             throw new RuntimeException("Inject failed: " + fieldName, e);
         }
     }
+
+    @Test
+    void replayWithoutOriginalTopicHeaderSucceedsWhenWizardSuppliesTopic() {
+        var msg = message(MSG_ID, CONFIG_ID, MessageStatus.NEW, Map.of(), null);
+        when(messageRepo.findById(MSG_ID)).thenReturn(Optional.of(msg));
+        when(configRepo.findById(CONFIG_ID)).thenReturn(Optional.of(config(CONFIG_ID, CLUSTER_ID)));
+        when(clusterRepo.findById(CLUSTER_ID)).thenReturn(Optional.of(plaintextCluster(CLUSTER_ID)));
+
+        var result = useCase.replay(MSG_ID, "orders-manual", null, USER_ID);
+
+        assertThat(result.success()).isTrue();
+        verify(producer).publish(any(), any(), eq("orders-manual"), any(), any(), any());
+        assertThat(msg.getStatus()).isEqualTo(MessageStatus.REPLAYED);
+    }
 }

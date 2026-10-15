@@ -2,6 +2,7 @@ package it.dls.infrastructure.api.message;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import it.dls.domain.message.DlqMessage;
+import it.dls.domain.message.FailureInfo;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -23,9 +24,10 @@ public record MessageResponse(
     String rawPayload,
     String key,
     Map<String, String> headers,
-    JsonNode replayedDecodedPayload
+    JsonNode replayedDecodedPayload,
+    FailureInfo failureInfo
 ) {
-    public static MessageResponse from(DlqMessage m) {
+    public static MessageResponse from(DlqMessage m, FailureInfo info) {
         return new MessageResponse(
             m.getId(), m.getDlqConfigId(), m.getPartition(), m.getKafkaOffset(),
             m.getKafkaTimestamp(), m.getStatus().name(), m.isSchemaDecodeFailed(),
@@ -33,7 +35,8 @@ public record MessageResponse(
             decodeBytes(m.getRawPayload()),
             decodeBytes(m.getKey()),
             m.getHeaders(),
-            m.getReplayedDecodedPayload()
+            m.getReplayedDecodedPayload(),
+            info != null ? info : FailureInfo.empty()
         );
     }
 

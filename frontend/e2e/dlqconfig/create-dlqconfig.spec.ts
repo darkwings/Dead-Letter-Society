@@ -19,6 +19,7 @@ const createdConfig = {
 
 test.beforeEach(async ({ page }) => {
   await loginAsAdmin(page)
+  await page.route('/api/header-presets', (route) => route.fulfill({ json: [] }))
   await page.route(`/api/clusters/${CLUSTER_ID}/topics`, (route) =>
     route.fulfill({ json: { topics: ['orders.dlq', 'payments.dlq', 'inventory.dlq'] } })
   )

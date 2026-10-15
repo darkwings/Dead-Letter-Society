@@ -34,6 +34,7 @@ public class FetchMessagesUseCase {
     private final FetchLockService fetchLockService;
     private final EncryptionPort encryption;
     private final PartitionReconciliationService reconciliationService;
+    private final HeaderDecoder headerDecoder = new HeaderDecoder();
 
     @Inject
     public FetchMessagesUseCase(
@@ -213,7 +214,8 @@ public class FetchMessagesUseCase {
 
         return DlqMessage.ingest(
             config.getId(), raw.partition(), raw.offset(), raw.timestamp(),
-            raw.key(), raw.value(), decoded, schemaId, raw.headers(), decodeFailed);
+            raw.key(), raw.value(), decoded, schemaId,
+            headerDecoder.decode(raw.headers(), config.getHeaderMapping()), decodeFailed);
     }
 
 }

@@ -1,5 +1,6 @@
 package it.dls.infrastructure.api.message;
 
+import it.dls.application.inspection.FailureInfoAssembler;
 import it.dls.application.inspection.InspectMessagesUseCase;
 import it.dls.domain.message.MessageStatus;
 import it.dls.domain.message.Pageable;
@@ -18,6 +19,7 @@ import java.util.UUID;
 public class AllMessagesResource {
 
     @Inject InspectMessagesUseCase inspectMessages;
+    @Inject FailureInfoAssembler failureInfoAssembler;
     @Inject JsonWebToken jwt;
 
     @GET
@@ -29,7 +31,7 @@ public class AllMessagesResource {
             MessageStatus status = statusParam != null ? MessageStatus.valueOf(statusParam) : null;
             var result = inspectMessages.listAllMessages(
                 status, new Pageable(page, size), currentUserId(), isAdmin());
-            return Response.ok(MessagePageResponse.from(result)).build();
+            return Response.ok(MessagePageResponse.from(result, failureInfoAssembler.assembleAll(result.messages()))).build();
         } catch (IllegalArgumentException e) {
             return Response.status(400).entity(e.getMessage()).build();
         }

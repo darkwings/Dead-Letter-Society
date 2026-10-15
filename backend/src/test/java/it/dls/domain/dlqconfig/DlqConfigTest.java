@@ -172,4 +172,45 @@ class DlqConfigTest {
         config.assignUser(other, DlqRole.VIEWER);
         assertThat(config.getUserAssignments()).hasSize(2);
     }
+
+    // Header mapping
+
+    private DlqConfig newConfig() {
+        return DlqConfig.create(clusterId, "t", "T",
+            FetchConfig.onDemand(10), RetentionPolicy.maxCount(10), null);
+    }
+
+    @Test
+    void newConfigDefaultsToLegacyHeaderMapping() {
+        var c = newConfig();
+        assertThat(c.getHeaderPreset()).isEqualTo(HeaderPreset.LEGACY);
+        assertThat(c.getHeaderMapping()).isEqualTo(HeaderPreset.LEGACY.mapping());
+    }
+
+    @Test
+    void changeHeaderMappingWithPresetIgnoresCustom() {
+        var c = newConfig();
+        c.changeHeaderMapping(HeaderPreset.SPRING, HeaderMapping.empty());
+        assertThat(c.getHeaderPreset()).isEqualTo(HeaderPreset.SPRING);
+        assertThat(c.getHeaderMapping()).isEqualTo(HeaderPreset.SPRING.mapping());
+    }
+
+    @Test
+    void changeHeaderMappingCustomUsesProvidedMapping() {
+        var c = newConfig();
+        var custom = new HeaderMapping(new HeaderField("my-topic", HeaderEncoding.STRING),
+            null, null, null, null, null);
+        c.changeHeaderMapping(HeaderPreset.CUSTOM, custom);
+        assertThat(c.getHeaderPreset()).isEqualTo(HeaderPreset.CUSTOM);
+        assertThat(c.getHeaderMapping()).isEqualTo(custom);
+    }
+
+    @Test
+    void changeHeaderMappingCustomWithoutMappingFails() {
+        var c = newConfig();
+        assertThatThrownBy(() -> c.changeHeaderMapping(HeaderPreset.CUSTOM, null))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> c.changeHeaderMapping(null, null))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
 }

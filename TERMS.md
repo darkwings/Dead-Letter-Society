@@ -77,6 +77,9 @@ AES-256 key used to encrypt sensitive credentials (e.g. Kafka passwords, certifi
 
 ## F
 
+**Failure Info**
+Normalized view of a Message's failure attributes (original topic, partition, offset, timestamp, exception message, stacktrace), derived from its stored Headers through the DLQ Config's Header Mapping. Any attribute may be absent; absence never blocks viewing or Replay.
+
 **Fetch**
 Operation that downloads messages from a Kafka DLQ topic into the application database. Can be a Scheduled Fetch or an On-Demand Fetch. Each Fetch starts from the Committed Offset + 1 of the affected partition.
 
@@ -102,8 +105,14 @@ A situation where messages between the Committed Offset and the earliest availab
 
 ## H
 
+**Header Mapping**
+Per-DLQ-Config declaration of which Kafka header holds each failure attribute and how binary values are encoded (STRING, INT32, INT64). Chosen through a → *Header Preset* or defined by hand (CUSTOM).
+
+**Header Preset**
+Predefined Header Mapping: LEGACY (`x-original-topic`, default), SPRING (`kafka_dlt-*`), QUARKUS_SMALLRYE (`dead-letter-*`), or CUSTOM (user-defined).
+
 **Headers**
-Key-value metadata attached to a Kafka message. Include technical information such as `x-original-topic`, `x-exception-message`, etc. Preserved in full during Replay; `x-dls-replayed-at` and `x-dls-replayed-by` are added.
+Key-value metadata attached to a Kafka message. Include technical information such as the original topic and exception details; their names depend on the producing framework and are described by the DLQ Config's → *Header Mapping*. Preserved in full during Replay; `x-dls-replayed-at` and `x-dls-replayed-by` are added.
 
 ---
 
@@ -199,7 +208,7 @@ A Message state in which Replay was attempted but publishing to Kafka failed. Th
 **Replay Topic**
 The Kafka topic to which a Message is republished during Replay. Determined in priority order:
 1. Explicit override set by OPERATOR in the DLQ Config or during the wizard
-2. Value of the `x-original-topic` header (or equivalent) in the message
+2. Value of the original-topic header in the message, as named by the DLQ Config's → *Header Mapping*
 
 **Replay Rate**
 A metric expressing the percentage of Replayed messages out of the total messages in a given period. Formula: `REPLAYED / (REPLAYED + DISCARDED + UNDER_REVIEW + REPLAY_FAILED + NEW)`. Displayed in the Dashboard as a Sparkline Chart.
