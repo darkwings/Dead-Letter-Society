@@ -72,7 +72,7 @@ export default function CreateDlqConfigPage() {
   })
 
   return (
-    <div style={{ padding: 32, maxWidth: 480, margin: '0 auto' }}>
+    <div style={{ padding: 32, maxWidth: 720, margin: '0 auto' }}>
       <h1 className="t-h1" style={{ marginBottom: 24 }}>Add DLQ Config</h1>
 
       <div className="card" style={{ padding: 24 }}>

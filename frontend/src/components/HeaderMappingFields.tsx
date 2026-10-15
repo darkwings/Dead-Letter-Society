@@ -68,18 +68,19 @@ export default function HeaderMappingFields({ preset, mapping, onChange }: Props
           <option value="CUSTOM">Custom</option>
         </select>
       </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
       {FIELDS.map(({ key, label, encodings }) => {
         const value = shown[key]
         return (
           <div key={key} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 }}>
               <label htmlFor={`hdr-${key}`} style={{ fontSize: 12, fontWeight: 500 }}>{label} header</label>
               <input id={`hdr-${key}`} className="input" disabled={!editable}
                 value={value?.name ?? ''}
                 onChange={(e) => setField(key, e.target.value, value?.encoding ?? 'STRING')} />
             </div>
             {encodings.length > 1 && (
-              <select aria-label={`${label} encoding`} className="select" disabled={!editable}
+              <select aria-label={`${label} encoding`} className="select" style={{ width: 90, flexShrink: 0 }} disabled={!editable}
                 value={value?.encoding ?? 'STRING'}
                 onChange={(e) => value && setField(key, value.name, e.target.value as HeaderEncoding)}>
                 {encodings.map(enc => <option key={enc} value={enc}>{enc}</option>)}
@@ -88,6 +89,7 @@ export default function HeaderMappingFields({ preset, mapping, onChange }: Props
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

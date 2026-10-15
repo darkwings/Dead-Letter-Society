@@ -63,6 +63,53 @@ function payloadPreview(msg: MessageSummary): string {
   return '—'
 }
 
+/**
+ * WebKit renders an empty datetime-local as the current date/time, which looks like an
+ * applied filter. While empty, hide that placeholder and show "Any" instead.
+ */
+function DateTimeFilter({ label, clearLabel, value, onChange }: {
+  label: string
+  clearLabel: string
+  value: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>{label}</span>
+      <div style={{ position: 'relative' }}>
+        <input
+          type="datetime-local"
+          className="input"
+          aria-label={label}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            width: '100%', paddingRight: value ? 28 : undefined, colorScheme: 'dark',
+            color: value ? undefined : 'transparent',
+          }}
+        />
+        {!value && (
+          <span style={{
+            position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+            fontSize: 13, color: 'hsl(var(--muted-foreground))', pointerEvents: 'none',
+          }}>Any</span>
+        )}
+        {value && (
+          <button
+            onClick={() => onChange('')}
+            style={{
+              position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'hsl(var(--muted-foreground))', fontSize: 14, lineHeight: 1, padding: 2,
+            }}
+            aria-label={clearLabel}
+          >×</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function MessageListPage() {
   const { configId } = useParams<{ configId: string }>()
   const queryClient = useQueryClient()
@@ -272,53 +319,8 @@ export default function MessageListPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <label style={{ fontSize: 11, fontWeight: 500, color: 'hsl(var(--muted-foreground))' }}>Date range</label>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>From</span>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="datetime-local"
-                  className="input"
-                  value={fromFilter}
-                  onChange={(e) => setFromFilter(e.target.value)}
-                  style={{ width: '100%', paddingRight: fromFilter ? 28 : undefined, colorScheme: 'dark' }}
-                />
-                {fromFilter && (
-                  <button
-                    onClick={() => setFromFilter('')}
-                    style={{
-                      position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      color: 'hsl(var(--muted-foreground))', fontSize: 14, lineHeight: 1, padding: 2,
-                    }}
-                    aria-label="Clear from date"
-                  >×</button>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>To</span>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="datetime-local"
-                  className="input"
-                  value={toFilter}
-                  onChange={(e) => setToFilter(e.target.value)}
-                  style={{ width: '100%', paddingRight: toFilter ? 28 : undefined, colorScheme: 'dark' }}
-                />
-                {toFilter && (
-                  <button
-                    onClick={() => setToFilter('')}
-                    style={{
-                      position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      color: 'hsl(var(--muted-foreground))', fontSize: 14, lineHeight: 1, padding: 2,
-                    }}
-                    aria-label="Clear to date"
-                  >×</button>
-                )}
-              </div>
-            </div>
+            <DateTimeFilter label="From" clearLabel="Clear from date" value={fromFilter} onChange={setFromFilter} />
+            <DateTimeFilter label="To" clearLabel="Clear to date" value={toFilter} onChange={setToFilter} />
 
             {!fromFilter && !toFilter && (
               <p style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', margin: 0 }}>No date filter set</p>
